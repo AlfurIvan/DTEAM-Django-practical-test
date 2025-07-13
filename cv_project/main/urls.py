@@ -11,4 +11,6 @@ urlpatterns = [
     path('cv/<int:pk>/pdf/', views.cv_pdf_download, name='cv_pdf_download'),
     path('logs/',views.RequestLogsView.as_view(), name='request_logs'),
     path('logs/api/',views.request_logs_api, name='request_logs_api'),
+    path('settings/', views.SettingsView.as_view(), name='settings'),
+    path('api/settings/', views.settings_api, name='settings_api'),
 ]

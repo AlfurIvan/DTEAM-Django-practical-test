@@ -6,11 +6,16 @@ import time
 from datetime import date
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.http import HttpResponse
-from django.test import TestCase, Client, override_settings
+from django.template import Template
+from django.test import TestCase, Client, RequestFactory
+from django.test import override_settings
 from django.urls import reverse
+from main.context_processors import settings_context, request_context, app_context
 from main.middleware import RequestLoggingMiddleware
 from main.models import CV, Skill, Project, Contact, RequestLog, CV
+from main.views import SettingsView
 
 
 class CVModelTest(TestCase):
@@ -267,7 +272,7 @@ class CVDetailViewTest(TestCase):
 
     def test_cv_detail_view_query_optimization(self):
         """Test that CV detail view uses optimized queries."""
-        with self.assertNumQueries(4):  # Expecting optimized queries
+        with self.assertNumQueries(6):  # Expecting optimized queries
             response = self.client.get(reverse('cv_detail', kwargs={'pk': self.cv.pk}))
             # Access related objects to trigger queries
             cv = response.context['cv']
@@ -831,3 +836,282 @@ class RequestLoggingIntegrationTest(TestCase):
             request = MockRequest(path)
             result = middleware._should_log_request(request)
             self.assertEqual(result, should_log, f"Path {path} should {'be logged' if should_log else 'be excluded'}")
+
+
+class ContextProcessorTest(TestCase):
+    """Test cases for custom context processors."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.factory = RequestFactory()
+        self.client = Client()
+
+    def test_settings_context_processor(self):
+        """Test settings_context processor filters sensitive data."""
+        request = self.factory.get('/')
+        context = settings_context(request)
+
+        # Check that context contains settings
+        self.assertIn('settings', context)
+        self.assertIn('django_settings', context)
+
+        # Check that basic safe settings are included
+        settings_data = context['settings']
+        self.assertIn('DEBUG', settings_data)
+        self.assertIn('TIME_ZONE', settings_data)
+        self.assertIn('LANGUAGE_CODE', settings_data)
+
+        # Check that sensitive settings are excluded
+        sensitive_keys = ['SECRET_KEY', 'DATABASE', 'PASSWORD', 'API_KEY']
+        for key in sensitive_keys:
+            self.assertNotIn(key, settings_data)
+
+        # Check that derived settings are included
+        self.assertIn('INSTALLED_APPS_COUNT', settings_data)
+        self.assertIn('MIDDLEWARE_COUNT', settings_data)
+        self.assertIn('IS_DEBUG_MODE', settings_data)
+
+    def test_request_context_processor(self):
+        """Test request_context processor provides safe request info."""
+        request = self.factory.get('/test-path/?param=value')
+        request.META['HTTP_USER_AGENT'] = 'Test User Agent'
+        request.META['REMOTE_ADDR'] = '127.0.0.1'
+
+        context = request_context(request)
+
+        # Check that request_info is included
+        self.assertIn('request_info', context)
+
+        request_info = context['request_info']
+        self.assertEqual(request_info['method'], 'GET')
+        self.assertEqual(request_info['path'], '/test-path/')
+        self.assertEqual(request_info['query_params_count'], 1)
+        self.assertEqual(request_info['remote_addr'], '127.0.0.1')
+        self.assertFalse(request_info['is_ajax'])
+        self.assertFalse(request_info['is_secure'])
+
+    def test_app_context_processor(self):
+        """Test app_context processor provides application info."""
+        request = self.factory.get('/')
+        context = app_context(request)
+
+        # Check that app_info is included
+        self.assertIn('app_info', context)
+
+        app_info = context['app_info']
+        self.assertIn('app_name', app_info)
+        self.assertIn('app_version', app_info)
+        self.assertIn('environment', app_info)
+        self.assertIn('stats', app_info)
+
+        # Check stats
+        stats = app_info['stats']
+        self.assertIn('total_cvs', stats)
+        self.assertIn('database_vendor', stats)
+
+    def test_context_processors_in_template(self):
+        """Test that context processors work in templates."""
+        # Create a test template
+        template = Template('{{ settings.DEBUG }} {{ app_info.app_name }} {{ request_info.method }}')
+
+        # Create a request
+        request = self.factory.get('/')
+
+        # Render template with context processors
+        from django.template import RequestContext
+        context = RequestContext(request)
+        rendered = template.render(context)
+
+        # Check that context processor values are rendered
+        self.assertIn(str(settings.DEBUG), rendered)
+        self.assertIn('CV Management System', rendered)
+        self.assertIn('GET', rendered)
+
+    def test_sensitive_settings_filtered_out(self):
+        """Test that sensitive settings are properly filtered out."""
+        request = self.factory.get('/')
+        context = settings_context(request)
+        settings_data = context['settings']
+
+        # List of patterns that should be filtered out
+        sensitive_patterns = [
+            'SECRET', 'KEY', 'PASSWORD', 'TOKEN', 'API', 'AUTH',
+            'DATABASE', 'CREDENTIAL', 'PRIVATE', 'SECURITY'
+        ]
+
+        # Check that no setting names contain sensitive patterns
+        for setting_name in settings_data.keys():
+            for pattern in sensitive_patterns:
+                if pattern in setting_name.upper():
+                    # If it contains a sensitive pattern, it should be a derived/safe setting
+                    safe_settings = [
+                        'INSTALLED_APPS_COUNT', 'MIDDLEWARE_COUNT',
+                        'IS_DEBUG_MODE', 'AUTH_PASSWORD_VALIDATORS'  # This might be present
+                    ]
+                    self.assertIn(setting_name, safe_settings,
+                                  f"Sensitive setting '{setting_name}' was not filtered out")
+
+
+class SettingsViewTest(TestCase):
+    """Test cases for Settings view."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.client = Client()
+
+    def test_settings_view_status_code(self):
+        """Test that settings view returns 200."""
+        response = self.client.get('/settings/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_settings_view_template(self):
+        """Test that settings view uses correct template."""
+        response = self.client.get('/settings/')
+        self.assertTemplateUsed(response, 'main/settings.html')
+
+    def test_settings_view_context_data(self):
+        """Test that settings view includes all required context."""
+        response = self.client.get('/settings/')
+
+        # Check required context keys
+        required_keys = [
+            'core_settings', 'app_settings', 'middleware_settings',
+            'template_settings', 'static_settings', 'system_info'
+        ]
+
+        for key in required_keys:
+            self.assertIn(key, response.context, f"Missing context key: {key}")
+
+    def test_settings_view_shows_debug_status(self):
+        """Test that settings view shows DEBUG status."""
+        response = self.client.get('/settings/')
+
+        # Check that DEBUG setting is displayed
+        if settings.DEBUG:
+            self.assertContains(response, 'ON')
+        else:
+            self.assertContains(response, 'OFF')
+
+    def test_settings_view_shows_system_info(self):
+        """Test that settings view shows system information."""
+        response = self.client.get('/settings/')
+
+        # Check that system info is displayed
+        self.assertContains(response, 'Django')  # Django version should be shown
+        self.assertContains(response, 'Python')  # Python version should be shown
+
+    def test_settings_view_context_processor_demo(self):
+        """Test that settings view demonstrates context processors."""
+        response = self.client.get('/settings/')
+
+        # Check that context processor values are available
+        self.assertContains(response, 'Context Processor Demo')
+
+        # The settings should be available via context processor
+        self.assertIn('settings', response.context)
+        self.assertIn('app_info', response.context)
+        self.assertIn('request_info', response.context)
+
+    def test_settings_api_endpoint(self):
+        """Test settings API endpoint."""
+        response = self.client.get('/api/settings/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+
+        # Parse JSON response
+        data = response.json()
+
+        # Check required keys in API response
+        self.assertIn('core_settings', data)
+        self.assertIn('system_info', data)
+        self.assertIn('app_counts', data)
+
+        # Check that sensitive data is not in API response
+        core_settings = data['core_settings']
+        sensitive_keys = ['SECRET_KEY', 'DATABASE', 'PASSWORD']
+        for key in sensitive_keys:
+            self.assertNotIn(key, core_settings)
+
+    def test_settings_view_installed_apps_display(self):
+        """Test that installed apps are displayed correctly."""
+        response = self.client.get('/settings/')
+
+        # Check that main app is shown
+        self.assertContains(response, 'main')
+        # Check that Django apps are shown
+        self.assertContains(response, 'django.contrib.admin')
+
+    def test_settings_view_middleware_display(self):
+        """Test that middleware is displayed correctly."""
+        response = self.client.get('/settings/')
+
+        # Check that common middleware is shown
+        self.assertContains(response, 'SessionMiddleware')
+        self.assertContains(response, 'AuthenticationMiddleware')
+
+
+class ContextProcessorIntegrationTest(TestCase):
+    """Integration tests for context processors with views."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.client = Client()
+
+    def test_context_processors_available_in_all_views(self):
+        """Test that context processors are available in all views."""
+        # Test different views to ensure context processors work everywhere
+        test_views = [
+            ('/', 'cv_list'),
+            ('/settings/', 'settings'),
+        ]
+
+        for url, view_name in test_views:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+
+                # Check that context processor data is available
+                self.assertIn('settings', response.context)
+                self.assertIn('app_info', response.context)
+                self.assertIn('request_info', response.context)
+
+    def test_debug_mode_visibility(self):
+        """Test that debug mode affects template display."""
+        response = self.client.get('/')
+
+        if settings.DEBUG:
+            # In debug mode, debug info might be shown
+            self.assertIn('settings', response.context)
+            debug_value = response.context['settings'].get('DEBUG')
+            self.assertTrue(debug_value)
+        else:
+            # In production mode, debug should be False
+            debug_value = response.context['settings'].get('DEBUG')
+            self.assertFalse(debug_value)
+
+    def test_app_statistics_in_context(self):
+        """Test that app statistics are correctly provided."""
+        # Create some test data
+        from main.models import CV
+        CV.objects.create(
+            firstname='Test',
+            lastname='User',
+            email='test@example.com',
+            bio='Test bio'
+        )
+
+        response = self.client.get('/settings/')
+        app_info = response.context['app_info']
+
+        # Check that CV count is updated
+        self.assertGreaterEqual(app_info['stats']['total_cvs'], 1)
+
+    def test_request_info_accuracy(self):
+        """Test that request info is accurate."""
+        response = self.client.get('/settings/?test=param')
+        request_info = response.context['request_info']
+
+        self.assertEqual(request_info['method'], 'GET')
+        self.assertEqual(request_info['path'], '/settings/')
+        self.assertEqual(request_info['query_params_count'], 1)
+        self.assertFalse(request_info['is_secure'])

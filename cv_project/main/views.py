@@ -1,19 +1,24 @@
 """
 Views for the CV management system.
 """
-from datetime import datetime, timedelta
-
-from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse
-from django.views.generic import ListView, DetailView
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.units import inch
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+import platform
+import sys
+from datetime import datetime
+from datetime import timedelta
 from io import BytesIO
+
+import django
+from django.conf import settings
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.views.generic import ListView, DetailView, TemplateView
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
 from .models import CV, RequestLog
 
 
@@ -417,3 +422,142 @@ def request_logs_api(request):
         'stats': stats,
         'count': len(logs_data)
     }, encoder=DjangoJSONEncoder)
+
+
+
+class SettingsView(TemplateView):
+    """
+    View to display Django settings and system information.
+    Shows filtered settings (no sensitive data) and environment details.
+    """
+    template_name = 'main/settings.html'
+
+    def get_context_data(self, **kwargs):
+        """
+        Add settings and system information to template context.
+        """
+        context = super().get_context_data(**kwargs)
+
+        # The filtered settings are already available via context processor
+        # but we can add more detailed categorization here
+
+        # Categorize settings for better display
+        core_settings = {
+            'DEBUG': getattr(settings, 'DEBUG', False),
+            'ALLOWED_HOSTS': getattr(settings, 'ALLOWED_HOSTS', []),
+            'TIME_ZONE': getattr(settings, 'TIME_ZONE', 'UTC'),
+            'LANGUAGE_CODE': getattr(settings, 'LANGUAGE_CODE', 'en-us'),
+            'USE_TZ': getattr(settings, 'USE_TZ', True),
+            'USE_I18N': getattr(settings, 'USE_I18N', True),
+            'USE_L10N': getattr(settings, 'USE_L10N', True),
+        }
+
+        # Application settings
+        app_settings = {
+            'INSTALLED_APPS': getattr(settings, 'INSTALLED_APPS', []),
+            'ROOT_URLCONF': getattr(settings, 'ROOT_URLCONF', ''),
+            'WSGI_APPLICATION': getattr(settings, 'WSGI_APPLICATION', ''),
+            'DEFAULT_AUTO_FIELD': getattr(settings, 'DEFAULT_AUTO_FIELD', ''),
+        }
+
+        # Middleware settings
+        middleware_settings = {
+            'MIDDLEWARE': getattr(settings, 'MIDDLEWARE', []),
+        }
+
+        # Template settings
+        template_settings = {
+            'TEMPLATES': getattr(settings, 'TEMPLATES', []),
+        }
+
+        # Static files settings
+        static_settings = {
+            'STATIC_URL': getattr(settings, 'STATIC_URL', '/static/'),
+            'STATICFILES_DIRS': getattr(settings, 'STATICFILES_DIRS', []),
+            'STATICFILES_FINDERS': getattr(settings, 'STATICFILES_FINDERS', []),
+        }
+
+        # Django REST Framework settings (if available)
+        drf_settings = {}
+        if hasattr(settings, 'REST_FRAMEWORK'):
+            drf_settings = getattr(settings, 'REST_FRAMEWORK', {})
+
+        # System information
+        system_info = {
+            'python_version': sys.version,
+            'django_version': django.get_version(),
+            'platform': platform.platform(),
+            'architecture': platform.architecture(),
+            'processor': platform.processor(),
+            'hostname': platform.node(),
+            'current_time': datetime.now(),
+        }
+
+        # Environment variables (non-sensitive ones)
+        safe_env_vars = {}
+        import os
+        safe_env_patterns = [
+            'DJANGO_SETTINGS_MODULE',
+            'PYTHONPATH',
+            'PATH',
+            'HOME',
+            'USER',
+            'VIRTUAL_ENV',
+            'SHELL',
+            'TERM',
+        ]
+
+        for var in safe_env_patterns:
+            if var in os.environ:
+                value = os.environ[var]
+                # Truncate very long values
+                if len(value) > 200:
+                    value = value[:200] + '...'
+                safe_env_vars[var] = value
+
+        # Add everything to context
+        context.update({
+            'core_settings': core_settings,
+            'app_settings': app_settings,
+            'middleware_settings': middleware_settings,
+            'template_settings': template_settings,
+            'static_settings': static_settings,
+            'drf_settings': drf_settings,
+            'system_info': system_info,
+            'safe_env_vars': safe_env_vars,
+            'page_title': 'Django Settings',
+        })
+
+        return context
+
+
+def settings_api(request):
+    """
+    API endpoint that returns settings information as JSON.
+    Useful for AJAX requests or debugging.
+    """
+    from django.http import JsonResponse
+    from django.core.serializers.json import DjangoJSONEncoder
+
+    # Get the same context as the view
+    view = SettingsView()
+    view.request = request
+    context = view.get_context_data()
+
+    # Prepare JSON-serializable data
+    json_data = {
+        'core_settings': context['core_settings'],
+        'system_info': {
+            'python_version': context['system_info']['python_version'],
+            'django_version': context['system_info']['django_version'],
+            'platform': context['system_info']['platform'],
+            'current_time': context['system_info']['current_time'].isoformat(),
+        },
+        'app_counts': {
+            'installed_apps': len(context['app_settings']['INSTALLED_APPS']),
+            'middleware': len(context['middleware_settings']['MIDDLEWARE']),
+            'template_engines': len(context['template_settings']['TEMPLATES']),
+        }
+    }
+
+    return JsonResponse(json_data, encoder=DjangoJSONEncoder)
