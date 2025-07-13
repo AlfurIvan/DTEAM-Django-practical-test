@@ -1,16 +1,18 @@
 """
 Views for the CV management system.
 """
+import json
 import platform
+import re
 import sys
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import BytesIO
 
 import django
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
+from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView, DetailView, TemplateView
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
@@ -23,145 +25,131 @@ from .models import CV, RequestLog
 
 
 class CVListView(ListView):
-    """
-    View to display a list of all CVs.
-    """
+    """View to display a list of all CVs."""
     model = CV
     template_name = 'main/cv_list.html'
     context_object_name = 'cvs'
     paginate_by = 10
 
     def get_queryset(self):
-        """
-        Optimize database queries by using select_related and prefetch_related.
-        """
+        """Optimize database queries by using select_related and prefetch_related."""
         return CV.objects.select_related().prefetch_related(
             'skills', 'projects', 'contacts'
         )
 
 
 class CVDetailView(DetailView):
-    """
-    View to display detailed information about a specific CV.
-    """
+    """View to display detailed information about a specific CV."""
     model = CV
     template_name = 'main/cv_detail.html'
     context_object_name = 'cv'
 
     def get_queryset(self):
-        """
-        Optimize database queries by using select_related and prefetch_related.
-        """
+        """Optimize database queries by using select_related and prefetch_related."""
         return CV.objects.select_related().prefetch_related(
             'skills', 'projects', 'contacts'
         )
 
-def cv_pdf_download(request, pk):
+
+class PDFGenerator:
     """
-    Generate and download CV as PDF using ReportLab.
+    Centralized PDF generation class to avoid code duplication.
+    Handles all PDF styling and content generation.
     """
-    cv = get_object_or_404(CV, pk=pk)
 
-    # Create PDF buffer
-    buffer = BytesIO()
+    def __init__(self, cv):
+        self.cv = cv
+        self.buffer = BytesIO()
+        self.elements = []
+        self.styles = self._create_styles()
 
-    # Create PDF document
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=72,
-        leftMargin=72,
-        topMargin=72,
-        bottomMargin=18
-    )
+    def _create_styles(self):
+        """Create and return custom PDF styles."""
+        base_styles = getSampleStyleSheet()
 
-    # Container for the 'Flowable' objects
-    elements = []
+        return {
+            'title': ParagraphStyle(
+                'CustomTitle',
+                parent=base_styles['Heading1'],
+                fontSize=24,
+                spaceAfter=30,
+                alignment=TA_CENTER,
+                textColor=colors.HexColor('#007bff')
+            ),
+            'heading': ParagraphStyle(
+                'CustomHeading',
+                parent=base_styles['Heading2'],
+                fontSize=16,
+                spaceAfter=12,
+                spaceBefore=20,
+                textColor=colors.HexColor('#007bff'),
+                borderWidth=1,
+                borderColor=colors.HexColor('#007bff'),
+                borderPadding=5,
+                backColor=colors.HexColor('#f8f9fa')
+            ),
+            'normal': ParagraphStyle(
+                'CustomNormal',
+                parent=base_styles['Normal'],
+                fontSize=11,
+                spaceAfter=12,
+                alignment=TA_JUSTIFY
+            ),
+            'contact': ParagraphStyle(
+                'ContactStyle',
+                parent=base_styles['Normal'],
+                fontSize=10,
+                spaceAfter=6,
+                alignment=TA_CENTER,
+                textColor=colors.HexColor('#666666')
+            )
+        }
 
-    # Define styles
-    styles = getSampleStyleSheet()
+    def _add_header(self):
+        """Add CV title and contact information."""
+        # Title
+        title = Paragraph(self.cv.full_name, self.styles['title'])
+        self.elements.append(title)
 
-    # Custom styles
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=24,
-        spaceAfter=30,
-        alignment=TA_CENTER,
-        textColor=colors.HexColor('#007bff')
-    )
+        # Contact info
+        contact_info = f"Email: {self.cv.email}"
+        if self.cv.phone:
+            contact_info += f" | Phone: {self.cv.phone}"
+        contact_para = Paragraph(contact_info, self.styles['contact'])
+        self.elements.append(contact_para)
+        self.elements.append(Spacer(1, 20))
 
-    heading_style = ParagraphStyle(
-        'CustomHeading',
-        parent=styles['Heading2'],
-        fontSize=16,
-        spaceAfter=12,
-        spaceBefore=20,
-        textColor=colors.HexColor('#007bff'),
-        borderWidth=1,
-        borderColor=colors.HexColor('#007bff'),
-        borderPadding=5,
-        backColor=colors.HexColor('#f8f9fa')
-    )
+    def _add_biography(self):
+        """Add professional summary section."""
+        bio_heading = Paragraph("Professional Summary", self.styles['heading'])
+        self.elements.append(bio_heading)
+        bio_content = Paragraph(self.cv.bio, self.styles['normal'])
+        self.elements.append(bio_content)
+        self.elements.append(Spacer(1, 15))
 
-    normal_style = ParagraphStyle(
-        'CustomNormal',
-        parent=styles['Normal'],
-        fontSize=11,
-        spaceAfter=12,
-        alignment=TA_JUSTIFY
-    )
+    def _add_skills(self):
+        """Add skills section with table layout."""
+        if not self.cv.skills.exists():
+            return
 
-    contact_style = ParagraphStyle(
-        'ContactStyle',
-        parent=styles['Normal'],
-        fontSize=10,
-        spaceAfter=6,
-        alignment=TA_CENTER,
-        textColor=colors.HexColor('#666666')
-    )
+        skills_heading = Paragraph("Core Skills", self.styles['heading'])
+        self.elements.append(skills_heading)
 
-    # Add title
-    title = Paragraph(cv.full_name, title_style)
-    elements.append(title)
-
-    # Add contact information
-    contact_info = f"Email: {cv.email}"
-    if cv.phone:
-        contact_info += f" | Phone: {cv.phone}"
-    contact_para = Paragraph(contact_info, contact_style)
-    elements.append(contact_para)
-    elements.append(Spacer(1, 20))
-
-    # Add Biography
-    bio_heading = Paragraph("Professional Summary", heading_style)
-    elements.append(bio_heading)
-    bio_content = Paragraph(cv.bio, normal_style)
-    elements.append(bio_content)
-    elements.append(Spacer(1, 15))
-
-    # Add Skills
-    if cv.skills.exists():
-        skills_heading = Paragraph("Core Skills", heading_style)
-        elements.append(skills_heading)
-
-        # Create skills table - Fix: Remove HTML tags, use plain text
+        # Create skills table (2 columns)
         skills_data = []
         skills_row = []
-        for i, skill in enumerate(cv.skills.all()):
-            # Create clean skill text without HTML tags
+
+        for skill in self.cv.skills.all():
             skill_text = f"{skill.name}\n{skill.get_proficiency_display()}"
             skills_row.append(skill_text)
 
-            # Create new row every 2 skills
             if len(skills_row) == 2:
                 skills_data.append(skills_row)
                 skills_row = []
 
-        # Add remaining skills if any
+        # Add remaining skill if odd number
         if skills_row:
-            while len(skills_row) < 2:
-                skills_row.append("")
+            skills_row.append("")
             skills_data.append(skills_row)
 
         if skills_data:
@@ -171,75 +159,69 @@ def cv_pdf_download(request, pk):
                 ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 11),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
                 ('TOPPADDING', (0, 0), (-1, -1), 12),
                 ('LEFTPADDING', (0, 0), (-1, -1), 10),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 10),
                 ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e9ecef')),
-                # Make skill names bold and proficiency smaller
-                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
             ]))
-            elements.append(skills_table)
-            elements.append(Spacer(1, 15))
+            self.elements.append(skills_table)
+            self.elements.append(Spacer(1, 15))
 
-    # Add Projects
-    if cv.projects.exists():
-        projects_heading = Paragraph("Professional Projects", heading_style)
-        elements.append(projects_heading)
+    def _add_projects(self):
+        """Add projects section."""
+        if not self.cv.projects.exists():
+            return
 
-        for project in cv.projects.all():
-            # Project title with dates - Fix: Use proper Paragraph formatting
+        projects_heading = Paragraph("Professional Projects", self.styles['heading'])
+        self.elements.append(projects_heading)
+
+        for project in self.cv.projects.all():
+            # Project title with ongoing indicator
             project_title_text = f"<b>{project.title}</b>"
             if project.is_ongoing:
                 project_title_text += " <font color='#28a745'>(Ongoing)</font>"
 
+            # Date range
             date_range = f"{project.start_date.strftime('%b %Y')}"
             if project.end_date:
                 date_range += f" - {project.end_date.strftime('%b %Y')}"
             else:
                 date_range += " - Present"
 
-            # Create title paragraph
-            project_title_para = Paragraph(project_title_text, normal_style)
-            elements.append(project_title_para)
-
-            # Add date range
-            date_para = Paragraph(f"<font color='#666666'>{date_range}</font>", normal_style)
-            elements.append(date_para)
-
-            # Project description
-            project_desc = Paragraph(project.description, normal_style)
-            elements.append(project_desc)
+            # Add project elements
+            self.elements.append(Paragraph(project_title_text, self.styles['normal']))
+            self.elements.append(Paragraph(f"<font color='#666666'>{date_range}</font>", self.styles['normal']))
+            self.elements.append(Paragraph(project.description, self.styles['normal']))
 
             # Technologies
             if project.technologies_list:
                 tech_text = "<b>Technologies:</b> " + ", ".join(project.technologies_list)
-                tech_para = Paragraph(tech_text, normal_style)
-                elements.append(tech_para)
+                self.elements.append(Paragraph(tech_text, self.styles['normal']))
 
             # URL
             if project.url:
                 url_text = f"<b>URL:</b> <font color='#007bff'>{project.url}</font>"
-                url_para = Paragraph(url_text, normal_style)
-                elements.append(url_para)
+                self.elements.append(Paragraph(url_text, self.styles['normal']))
 
-            elements.append(Spacer(1, 12))
+            self.elements.append(Spacer(1, 12))
 
-    # Add Contacts - Fix: Use clean table format
-    if cv.contacts.exists():
-        contacts_heading = Paragraph("Contact & Social Media", heading_style)
-        elements.append(contacts_heading)
+    def _add_contacts(self):
+        """Add contact information section."""
+        if not self.cv.contacts.exists():
+            return
+
+        contacts_heading = Paragraph("Contact & Social Media", self.styles['heading'])
+        self.elements.append(contacts_heading)
 
         contacts_data = []
-        for contact in cv.contacts.all():
-            # Clean contact info without HTML tags for table
-            contact_info = [
+        for contact in self.cv.contacts.all():
+            contacts_data.append([
                 contact.get_contact_type_display(),
                 contact.url
-            ]
-            contacts_data.append(contact_info)
+            ])
 
         if contacts_data:
             contacts_table = Table(contacts_data, colWidths=[2*inch, 4*inch])
@@ -248,28 +230,66 @@ def cv_pdf_download(request, pk):
                 ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),  # Make contact type bold
-                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),        # Regular font for URL
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
                 ('TOPPADDING', (0, 0), (-1, -1), 8),
                 ('LEFTPADDING', (0, 0), (-1, -1), 10),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 10),
                 ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e9ecef')),
-                ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#007bff')),  # Blue color for URLs
+                ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#007bff')),
             ]))
-            elements.append(contacts_table)
+            self.elements.append(contacts_table)
 
-    # Add footer
-    elements.append(Spacer(1, 30))
-    footer_text = f"Generated on {cv.updated_at.strftime('%B %d, %Y')} | {cv.full_name} Professional CV"
-    footer_para = Paragraph(footer_text, contact_style)
-    elements.append(footer_para)
+    def _add_footer(self):
+        """Add footer with generation date."""
+        self.elements.append(Spacer(1, 30))
+        footer_text = f"Generated on {self.cv.updated_at.strftime('%B %d, %Y')} | {self.cv.full_name} Professional CV"
+        footer_para = Paragraph(footer_text, self.styles['contact'])
+        self.elements.append(footer_para)
 
-    # Build PDF
-    doc.build(elements)
+    def generate(self):
+        """Generate the complete PDF and return the buffer."""
+        # Create PDF document
+        doc = SimpleDocTemplate(
+            self.buffer,
+            pagesize=A4,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=18
+        )
 
-    # Get PDF data
+        # Add all sections
+        self._add_header()
+        self._add_biography()
+        self._add_skills()
+        self._add_projects()
+        self._add_contacts()
+        self._add_footer()
+
+        # Build PDF
+        doc.build(self.elements)
+
+        return self.buffer
+
+
+def generate_cv_pdf_buffer(cv):
+    """
+    Helper function to generate CV PDF and return as BytesIO buffer.
+    Used by both download view and Celery email task.
+    """
+    generator = PDFGenerator(cv)
+    return generator.generate()
+
+
+def cv_pdf_download(request, pk):
+    """Generate and download CV as PDF using ReportLab."""
+    cv = get_object_or_404(CV, pk=pk)
+
+    # Generate PDF using helper function
+    buffer = generate_cv_pdf_buffer(cv)
     pdf = buffer.getvalue()
     buffer.close()
 
@@ -282,51 +302,45 @@ def cv_pdf_download(request, pk):
 
 
 class RequestLogsView(ListView):
-    """
-    View to display recent request logs with filtering and pagination.
-    """
+    """View to display recent request logs with filtering and pagination."""
     model = RequestLog
     template_name = 'main/request_logs.html'
     context_object_name = 'logs'
     paginate_by = 10
 
     def get_queryset(self):
-        """
-        Get filtered and ordered request logs.
-        """
+        """Get filtered and ordered request logs."""
         queryset = RequestLog.objects.all().order_by('-timestamp')
 
-        # Filter by method if specified
-        method = self.request.GET.get('method')
-        if method:
-            queryset = queryset.filter(method=method)
+        # Apply filters
+        filters = {
+            'method': self.request.GET.get('method'),
+            'path': self.request.GET.get('path'),
+            'ip': self.request.GET.get('ip'),
+            'date_from': self.request.GET.get('date_from'),
+            'date_to': self.request.GET.get('date_to'),
+        }
 
-        # Filter by path if specified
-        path = self.request.GET.get('path')
-        if path:
-            queryset = queryset.filter(path__icontains=path)
+        if filters['method']:
+            queryset = queryset.filter(method=filters['method'])
 
-        # Filter by IP if specified
-        ip = self.request.GET.get('ip')
-        if ip:
-            queryset = queryset.filter(remote_ip__icontains=ip)
+        if filters['path']:
+            queryset = queryset.filter(path__icontains=filters['path'])
 
-        # Filter by date range
-        date_from = self.request.GET.get('date_from')
-        date_to = self.request.GET.get('date_to')
+        if filters['ip']:
+            queryset = queryset.filter(remote_ip__icontains=filters['ip'])
 
-        if date_from:
+        # Date filtering
+        if filters['date_from']:
             try:
-                date_from = datetime.strptime(date_from, '%Y-%m-%d')
+                date_from = datetime.strptime(filters['date_from'], '%Y-%m-%d')
                 queryset = queryset.filter(timestamp__gte=date_from)
             except ValueError:
                 pass
 
-        if date_to:
+        if filters['date_to']:
             try:
-                date_to = datetime.strptime(date_to, '%Y-%m-%d')
-                # Add 24 hours to include the entire day
-                date_to = date_to + timedelta(days=1)
+                date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d') + timedelta(days=1)
                 queryset = queryset.filter(timestamp__lt=date_to)
             except ValueError:
                 pass
@@ -334,35 +348,25 @@ class RequestLogsView(ListView):
         return queryset
 
     def get_context_data(self, **kwargs):
-        """
-        Add additional context data for the template.
-        """
+        """Add additional context data for the template."""
         context = super().get_context_data(**kwargs)
 
-        # Add statistics
-        context['stats'] = RequestLog.get_stats()
-
-        # Add filter values to maintain state in form
-        context['current_method'] = self.request.GET.get('method', '')
-        context['current_path'] = self.request.GET.get('path', '')
-        context['current_ip'] = self.request.GET.get('ip', '')
-        context['current_date_from'] = self.request.GET.get('date_from', '')
-        context['current_date_to'] = self.request.GET.get('date_to', '')
-
-        # Add available methods for filter dropdown
-        context['available_methods'] = RequestLog.objects.values_list(
-            'method', flat=True
-        ).distinct().order_by('method')
-
-        # Recent activity summary
-        context['recent_summary'] = self._get_recent_summary()
+        # Add statistics and filter values
+        context.update({
+            'stats': RequestLog.get_stats(),
+            'current_method': self.request.GET.get('method', ''),
+            'current_path': self.request.GET.get('path', ''),
+            'current_ip': self.request.GET.get('ip', ''),
+            'current_date_from': self.request.GET.get('date_from', ''),
+            'current_date_to': self.request.GET.get('date_to', ''),
+            'available_methods': RequestLog.objects.values_list('method', flat=True).distinct().order_by('method'),
+            'recent_summary': self._get_recent_summary(),
+        })
 
         return context
 
     def _get_recent_summary(self):
-        """
-        Get summary of recent activity (last 24 hours).
-        """
+        """Get summary of recent activity (last 24 hours)."""
         yesterday = datetime.now() - timedelta(hours=24)
         recent_logs = RequestLog.objects.filter(timestamp__gte=yesterday)
 
@@ -371,7 +375,7 @@ class RequestLogsView(ListView):
 
         from django.db.models import Count, Avg
 
-        summary = {
+        return {
             'total_requests': recent_logs.count(),
             'unique_ips': recent_logs.values('remote_ip').distinct().count(),
             'avg_response_time': recent_logs.filter(
@@ -385,102 +389,72 @@ class RequestLogsView(ListView):
             ).order_by('-count')[:5].values_list('path', 'count')),
         }
 
-        return summary
-
 
 def request_logs_api(request):
-    """
-    API endpoint for request logs data (for AJAX requests).
-    Returns JSON data for dynamic updates.
-    """
-    from django.http import JsonResponse
+    """API endpoint for request logs data (for AJAX requests)."""
     from django.core.serializers.json import DjangoJSONEncoder
 
-    # Get recent logs
     logs = RequestLog.get_recent_logs(20)
 
-    # Convert to JSON-serializable format
-    logs_data = []
-    for log in logs:
-        logs_data.append({
-            'id': log.id,
-            'timestamp': log.timestamp.isoformat(),
-            'method': log.method,
-            'path': log.path,
-            'query_string': log.query_string,
-            'remote_ip': log.remote_ip,
-            'response_status': log.response_status,
-            'response_time_ms': log.response_time_ms,
-            'full_url': log.full_url,
-        })
-
-    # Get statistics
-    stats = RequestLog.get_stats()
+    logs_data = [{
+        'id': log.id,
+        'timestamp': log.timestamp.isoformat(),
+        'method': log.method,
+        'path': log.path,
+        'query_string': log.query_string,
+        'remote_ip': log.remote_ip,
+        'response_status': log.response_status,
+        'response_time_ms': log.response_time_ms,
+        'full_url': log.full_url,
+    } for log in logs]
 
     return JsonResponse({
         'logs': logs_data,
-        'stats': stats,
+        'stats': RequestLog.get_stats(),
         'count': len(logs_data)
     }, encoder=DjangoJSONEncoder)
 
 
-
 class SettingsView(TemplateView):
-    """
-    View to display Django settings and system information.
-    Shows filtered settings (no sensitive data) and environment details.
-    """
+    """View to display Django settings and system information."""
     template_name = 'main/settings.html'
 
     def get_context_data(self, **kwargs):
-        """
-        Add settings and system information to template context.
-        """
+        """Add settings and system information to template context."""
         context = super().get_context_data(**kwargs)
 
-        # The filtered settings are already available via context processor
-        # but we can add more detailed categorization here
-
-        # Categorize settings for better display
-        core_settings = {
-            'DEBUG': getattr(settings, 'DEBUG', False),
-            'ALLOWED_HOSTS': getattr(settings, 'ALLOWED_HOSTS', []),
-            'TIME_ZONE': getattr(settings, 'TIME_ZONE', 'UTC'),
-            'LANGUAGE_CODE': getattr(settings, 'LANGUAGE_CODE', 'en-us'),
-            'USE_TZ': getattr(settings, 'USE_TZ', True),
-            'USE_I18N': getattr(settings, 'USE_I18N', True),
-            'USE_L10N': getattr(settings, 'USE_L10N', True),
+        # Categorized settings
+        settings_categories = {
+            'core_settings': {
+                'DEBUG': getattr(settings, 'DEBUG', False),
+                'ALLOWED_HOSTS': getattr(settings, 'ALLOWED_HOSTS', []),
+                'TIME_ZONE': getattr(settings, 'TIME_ZONE', 'UTC'),
+                'LANGUAGE_CODE': getattr(settings, 'LANGUAGE_CODE', 'en-us'),
+                'USE_TZ': getattr(settings, 'USE_TZ', True),
+                'USE_I18N': getattr(settings, 'USE_I18N', True),
+            },
+            'app_settings': {
+                'INSTALLED_APPS': getattr(settings, 'INSTALLED_APPS', []),
+                'ROOT_URLCONF': getattr(settings, 'ROOT_URLCONF', ''),
+                'WSGI_APPLICATION': getattr(settings, 'WSGI_APPLICATION', ''),
+                'DEFAULT_AUTO_FIELD': getattr(settings, 'DEFAULT_AUTO_FIELD', ''),
+            },
+            'middleware_settings': {
+                'MIDDLEWARE': getattr(settings, 'MIDDLEWARE', []),
+            },
+            'template_settings': {
+                'TEMPLATES': getattr(settings, 'TEMPLATES', []),
+            },
+            'static_settings': {
+                'STATIC_URL': getattr(settings, 'STATIC_URL', '/static/'),
+                'STATICFILES_DIRS': getattr(settings, 'STATICFILES_DIRS', []),
+                'STATICFILES_FINDERS': getattr(settings, 'STATICFILES_FINDERS', []),
+            },
         }
 
-        # Application settings
-        app_settings = {
-            'INSTALLED_APPS': getattr(settings, 'INSTALLED_APPS', []),
-            'ROOT_URLCONF': getattr(settings, 'ROOT_URLCONF', ''),
-            'WSGI_APPLICATION': getattr(settings, 'WSGI_APPLICATION', ''),
-            'DEFAULT_AUTO_FIELD': getattr(settings, 'DEFAULT_AUTO_FIELD', ''),
-        }
-
-        # Middleware settings
-        middleware_settings = {
-            'MIDDLEWARE': getattr(settings, 'MIDDLEWARE', []),
-        }
-
-        # Template settings
-        template_settings = {
-            'TEMPLATES': getattr(settings, 'TEMPLATES', []),
-        }
-
-        # Static files settings
-        static_settings = {
-            'STATIC_URL': getattr(settings, 'STATIC_URL', '/static/'),
-            'STATICFILES_DIRS': getattr(settings, 'STATICFILES_DIRS', []),
-            'STATICFILES_FINDERS': getattr(settings, 'STATICFILES_FINDERS', []),
-        }
-
-        # Django REST Framework settings (if available)
-        drf_settings = {}
+        # DRF settings if available
         if hasattr(settings, 'REST_FRAMEWORK'):
-            drf_settings = getattr(settings, 'REST_FRAMEWORK', {})
+            settings_categories['drf_settings'] = getattr(settings, 'REST_FRAMEWORK', {})
 
         # System information
         system_info = {
@@ -493,36 +467,11 @@ class SettingsView(TemplateView):
             'current_time': datetime.now(),
         }
 
-        # Environment variables (non-sensitive ones)
-        safe_env_vars = {}
-        import os
-        safe_env_patterns = [
-            'DJANGO_SETTINGS_MODULE',
-            'PYTHONPATH',
-            'PATH',
-            'HOME',
-            'USER',
-            'VIRTUAL_ENV',
-            'SHELL',
-            'TERM',
-        ]
+        # Safe environment variables
+        safe_env_vars = self._get_safe_env_vars()
 
-        for var in safe_env_patterns:
-            if var in os.environ:
-                value = os.environ[var]
-                # Truncate very long values
-                if len(value) > 200:
-                    value = value[:200] + '...'
-                safe_env_vars[var] = value
-
-        # Add everything to context
         context.update({
-            'core_settings': core_settings,
-            'app_settings': app_settings,
-            'middleware_settings': middleware_settings,
-            'template_settings': template_settings,
-            'static_settings': static_settings,
-            'drf_settings': drf_settings,
+            **settings_categories,
             'system_info': system_info,
             'safe_env_vars': safe_env_vars,
             'page_title': 'Django Settings',
@@ -530,21 +479,33 @@ class SettingsView(TemplateView):
 
         return context
 
+    def _get_safe_env_vars(self):
+        """Get non-sensitive environment variables."""
+        import os
+        safe_env_patterns = [
+            'DJANGO_SETTINGS_MODULE', 'PYTHONPATH', 'PATH', 'HOME',
+            'USER', 'VIRTUAL_ENV', 'SHELL', 'TERM',
+        ]
+
+        safe_env_vars = {}
+        for var in safe_env_patterns:
+            if var in os.environ:
+                value = os.environ[var]
+                if len(value) > 200:
+                    value = value[:200] + '...'
+                safe_env_vars[var] = value
+
+        return safe_env_vars
+
 
 def settings_api(request):
-    """
-    API endpoint that returns settings information as JSON.
-    Useful for AJAX requests or debugging.
-    """
-    from django.http import JsonResponse
+    """API endpoint that returns settings information as JSON."""
     from django.core.serializers.json import DjangoJSONEncoder
 
-    # Get the same context as the view
     view = SettingsView()
     view.request = request
     context = view.get_context_data()
 
-    # Prepare JSON-serializable data
     json_data = {
         'core_settings': context['core_settings'],
         'system_info': {
@@ -561,3 +522,81 @@ def settings_api(request):
     }
 
     return JsonResponse(json_data, encoder=DjangoJSONEncoder)
+
+
+def email_cv_view(request, pk):
+    """Handle CV email sending via AJAX."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        cv = get_object_or_404(CV, pk=pk)
+
+        # Parse and validate JSON data
+        try:
+            data = json.loads(request.body)
+            email = data.get('email', '').strip()
+            sender_name = data.get('sender_name', '').strip()
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+
+        # Validate email
+        if not email:
+            return JsonResponse({'success': False, 'error': 'Email address is required'}, status=400)
+
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            return JsonResponse({'success': False, 'error': 'Please enter a valid email address'}, status=400)
+
+        # Queue email task
+        from .tasks import send_cv_pdf_email
+
+        task = send_cv_pdf_email.delay(
+            cv_id=cv.pk,
+            recipient_email=email,
+            sender_name=sender_name or "CV Management System"
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'CV email queued successfully! It will be sent to {email} shortly.',
+            'task_id': task.id,
+            'cv_name': cv.full_name,
+            'recipient': email
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'An unexpected error occurred: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def check_email_task_status(request, task_id):
+    """Check the status of an email task."""
+    try:
+        from celery.result import AsyncResult
+        from core.celery import app as celery_app
+
+        task_result = AsyncResult(task_id, app=celery_app)
+
+        state_responses = {
+            'PENDING': {'state': task_result.state, 'status': 'Task is waiting to be processed...'},
+            'PROGRESS': {'state': task_result.state, 'status': 'Task is being processed...'},
+            'SUCCESS': {'state': task_result.state, 'status': 'Email sent successfully!', 'result': task_result.result},
+        }
+
+        response = state_responses.get(task_result.state, {
+            'state': task_result.state,
+            'status': 'Task failed',
+            'error': str(task_result.info)
+        })
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        return JsonResponse({
+            'state': 'ERROR',
+            'status': f'Error checking task status: {str(e)}'
+        }, status=500)

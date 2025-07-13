@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -162,42 +165,65 @@ REST_FRAMEWORK = {
     ],
 }
 
+# Add these sections to your core/settings.py file
 
-# Celery Configuration (Redis)
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_FROM = os.getenv('EMAIL_FROM', EMAIL_HOST_USER)
+
+# For development, you can use console backend to see emails in console
+if DEBUG and not EMAIL_HOST_USER:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Celery Configuration
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
 
-# Celery Windows compatibility
-CELERY_WORKER_POOL = 'eventlet'
-CELERY_WORKER_CONCURRENCY = 2
+# Celery task routes and rate limiting
+CELERY_TASK_ROUTES = {
+    'send_cv_pdf_email': {'queue': 'emails'},
+    'cleanup_old_request_logs': {'queue': 'maintenance'},
+}
 
-# OpenAI Configuration
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+# Rate limiting for email tasks (1 email per minute per user)
+CELERY_TASK_ANNOTATIONS = {
+    'send_cv_pdf_email': {
+        'rate_limit': '1/m',  # 1 task per minute
+        'time_limit': 300,    # 5 minutes timeout
+        'soft_time_limit': 240,  # 4 minutes soft timeout
+    },
+}
 
-# Email Configuration (for Celery tasks)
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes', 'on')
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': CELERY_BROKER_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'KEY_PREFIX': 'cv_project',
+    }
+}
 
-# Security Settings for Production
-if not DEBUG:
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_REDIRECT_EXEMPT = []
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+# Session engine (use cache-based sessions with Redis)
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
 
-# Logging Configuration
+
+# Create logs directory if it doesn't exist
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+# Logging configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -213,22 +239,50 @@ LOGGING = {
     },
     'handlers': {
         'console': {
+            'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': str(LOGS_DIR / 'django.log'),
+            'formatter': 'verbose',
+        },
+        'celery_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': str(LOGS_DIR / 'celery.log'),
+            'formatter': 'verbose',
+        },
     },
     'root': {
-        'handlers': ['console'],
         'level': 'INFO',
+        'handlers': ['console'],
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'main.tasks': {
+            'handlers': ['console', 'celery_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'main.views': {
+            'handlers': ['console', 'file'],
             'level': 'INFO',
             'propagate': False,
         },
         'celery': {
-            'handlers': ['console'],
+            'handlers': ['console', 'celery_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'celery.task': {
+            'handlers': ['console', 'celery_file'],
             'level': 'INFO',
             'propagate': False,
         },

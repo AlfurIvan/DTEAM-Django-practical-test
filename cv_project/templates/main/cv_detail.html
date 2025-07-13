@@ -34,9 +34,73 @@
                 <a href="{% url 'cv_pdf_download' cv.pk %}" class="btn btn-danger me-2" target="_blank">
                     <i class="fas fa-file-pdf"></i> Download PDF
                 </a>
+                <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#emailModal">
+                    <i class="fas fa-envelope"></i> Send PDF to Email
+                </button>
                 <a href="/admin/main/cv/{{ cv.pk }}/change/" class="btn btn-outline-secondary">
                     <i class="fas fa-edit"></i> Edit CV
                 </a>
+            </div>
+        </div>
+
+        <!-- Email Modal -->
+        <div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="emailModalLabel">
+                            <i class="fas fa-envelope"></i> Send CV via Email
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="emailForm">
+                            <div class="mb-3">
+                                <label for="recipientEmail" class="form-label">Recipient Email Address *</label>
+                                <input type="email" class="form-control" id="recipientEmail" required
+                                       placeholder="Enter email address">
+                                <div class="invalid-feedback" id="emailError"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="senderName" class="form-label">Your Name (Optional)</label>
+                                <input type="text" class="form-control" id="senderName"
+                                       placeholder="Enter your name (optional)">
+                                <div class="form-text">This will appear as the sender in the email</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">CV Summary</h6>
+                                        <p class="card-text mb-1"><strong>Name:</strong> {{ cv.full_name }}</p>
+                                        <p class="card-text mb-1"><strong>Email:</strong> {{ cv.email }}</p>
+                                        {% if cv.skills.all %}
+                                            <p class="card-text mb-0">
+                                                <strong>Skills:</strong>
+                                                {% for skill in cv.skills.all|slice:":3" %}
+                                                    {{ skill.name }}{% if not forloop.last %}, {% endif %}
+                                                {% endfor %}
+                                                {% if cv.skills.count > 3 %}
+                                                    and {{ cv.skills.count|add:"-3" }} more
+                                                {% endif %}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-success" id="sendEmailBtn">
+                            <span class="btn-text">
+                                <i class="fas fa-paper-plane"></i> Send Email
+                            </span>
+                            <span class="btn-loading d-none">
+                                <i class="fas fa-spinner fa-spin"></i> Sending...
+                            </span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -188,4 +252,167 @@
         </div>
     </div>
 </div>
-{%endblock%}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const emailForm = document.getElementById('emailForm');
+    const sendEmailBtn = document.getElementById('sendEmailBtn');
+    const recipientEmailInput = document.getElementById('recipientEmail');
+    const senderNameInput = document.getElementById('senderName');
+    const emailError = document.getElementById('emailError');
+    const modal = new bootstrap.Modal(document.getElementById('emailModal'));
+
+    // Email validation regex
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+    // Validate email on input
+    recipientEmailInput.addEventListener('input', function() {
+        const email = this.value.trim();
+        if (email && !emailRegex.test(email)) {
+            this.classList.add('is-invalid');
+            emailError.textContent = 'Please enter a valid email address';
+        } else {
+            this.classList.remove('is-invalid');
+            emailError.textContent = '';
+        }
+    });
+
+    // Handle send email button click
+    sendEmailBtn.addEventListener('click', function() {
+        const email = recipientEmailInput.value.trim();
+        const senderName = senderNameInput.value.trim();
+
+        // Validate email
+        if (!email) {
+            recipientEmailInput.classList.add('is-invalid');
+            emailError.textContent = 'Email address is required';
+            recipientEmailInput.focus();
+            return;
+        }
+
+        if (!emailRegex.test(email)) {
+            recipientEmailInput.classList.add('is-invalid');
+            emailError.textContent = 'Please enter a valid email address';
+            recipientEmailInput.focus();
+            return;
+        }
+
+        // Clear any previous errors
+        recipientEmailInput.classList.remove('is-invalid');
+        emailError.textContent = '';
+
+        // Show loading state
+        sendEmailBtn.disabled = true;
+        sendEmailBtn.querySelector('.btn-text').classList.add('d-none');
+        sendEmailBtn.querySelector('.btn-loading').classList.remove('d-none');
+
+        // Prepare data
+        const data = {
+            email: email,
+            sender_name: senderName
+        };
+
+        // Send AJAX request
+        fetch(`{% url 'cv_email' cv.pk %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Hide modal
+                modal.hide();
+
+                // Show success message
+                showAlert(`✅ ${data.message}`, 'success');
+
+                // Reset form
+                emailForm.reset();
+
+                // Optional: Check task status
+                if (data.task_id) {
+                    checkTaskStatus(data.task_id);
+                }
+            } else {
+                showAlert(`❌ ${data.error}`, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('❌ An error occurred while sending the email. Please try again.', 'danger');
+        })
+        .finally(() => {
+            // Reset button state
+            sendEmailBtn.disabled = false;
+            sendEmailBtn.querySelector('.btn-text').classList.remove('d-none');
+            sendEmailBtn.querySelector('.btn-loading').classList.add('d-none');
+        });
+    });
+
+    // Function to check task status
+    function checkTaskStatus(taskId) {
+        let checkCount = 0;
+        const maxChecks = 10;
+        const checkInterval = 2000; // 2 seconds
+
+        const statusChecker = setInterval(() => {
+            checkCount++;
+
+            fetch(`{% url 'check_task_status' 'TASK_ID' %}`.replace('TASK_ID', taskId))
+            .then(response => response.json())
+            .then(data => {
+                if (data.state === 'SUCCESS') {
+                    clearInterval(statusChecker);
+                    showAlert('📧 Email sent successfully!', 'success');
+                } else if (data.state === 'FAILURE') {
+                    clearInterval(statusChecker);
+                    showAlert('❌ Email sending failed: ' + (data.error || 'Unknown error'), 'danger');
+                } else if (checkCount >= maxChecks) {
+                    clearInterval(statusChecker);
+                    showAlert('⏱️ Email is taking longer than expected. Please check your email shortly.', 'warning');
+                }
+                // Continue checking for PENDING and PROGRESS states
+            })
+            .catch(error => {
+                console.error('Error checking task status:', error);
+                if (checkCount >= maxChecks) {
+                    clearInterval(statusChecker);
+                }
+            });
+        }, checkInterval);
+    }
+
+    // Reset form when modal is hidden
+    document.getElementById('emailModal').addEventListener('hidden.bs.modal', function() {
+        emailForm.reset();
+        recipientEmailInput.classList.remove('is-invalid');
+        emailError.textContent = '';
+        sendEmailBtn.disabled = false;
+        sendEmailBtn.querySelector('.btn-text').classList.remove('d-none');
+        sendEmailBtn.querySelector('.btn-loading').classList.add('d-none');
+    });
+});
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

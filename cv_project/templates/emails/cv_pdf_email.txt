@@ -1,0 +1,37 @@
+CV: {{ cv.full_name }}
+========================================
+
+Dear {{ recipient_email }},
+
+I hope this email finds you well. Please find attached the professional CV for {{ cv.full_name }}.
+
+CV SUMMARY
+----------
+Name: {{ cv.full_name }}
+Email: {{ cv.email }}
+{% if cv.phone %}Phone: {{ cv.phone }}{% endif %}
+
+{% if cv.skills.all %}Key Skills: {% for skill in cv.skills.all %}{{ skill.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+
+{% endif %}{% if cv.projects.all %}Projects: {{ cv.projects.count }} professional project{{ cv.projects.count|pluralize }}
+
+{% endif %}ATTACHMENT
+----------
+📎 {{ cv.full_name|slugify }}_CV.pdf
+Complete CV with detailed experience, skills, and project information
+
+The attached PDF contains comprehensive information about {{ cv.full_name }}'s professional background, including:
+
+- Professional Summary
+{% if cv.skills.all %}- Core Skills and Expertise
+{% endif %}{% if cv.projects.all %}- Professional Projects
+{% endif %}{% if cv.contacts.all %}- Contact and Social Media Information
+{% endif %}
+If you have any questions or need additional information, please don't hesitate to reach out.
+
+Best regards,
+{{ sender_name }}
+
+----------------------------------------
+This email was sent from the CV Management System
+Generated on {% now "F d, Y" %} at {% now "g:i A" %}
