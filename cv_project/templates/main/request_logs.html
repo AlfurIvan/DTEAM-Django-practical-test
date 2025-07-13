@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+
+{% block title %}Request Logs - CV Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">
+                <i class="fas fa-list-alt"></i> Request Logs
+            </h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="refreshLogs()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="btn btn-outline-secondary" onclick="toggleAutoRefresh()">
+                    <i class="fas fa-play" id="autoRefreshIcon"></i> Auto Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        {% if stats %}
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">
+                            <i class="fas fa-server"></i> Total Requests
+                        </h5>
+                        <h3 class="text-primary">{{ stats.total_requests|default:0 }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">
+                            <i class="fas fa-users"></i> Unique IPs
+                        </h5>
+                        <h3 class="text-success">{{ stats.unique_ips|default:0 }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-info">
+                            <i class="fas fa-clock"></i> Avg Response
+                        </h5>
+                        <h3 class="text-info">
+                            {% if stats.avg_response_time %}
+                            {{ stats.avg_response_time|floatformat:0 }}ms
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning">
+                            <i class="fas fa-code"></i> Methods
+                        </h5>
+                        <div class="text-warning">
+                            {% for method, count in stats.methods.items %}
+                            <small class="d-block">{{ method }}: {{ count }}</small>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Recent Activity Summary -->
+        {% if recent_summary %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line"></i> Last 24 Hours Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>Requests:</strong> {{ recent_summary.total_requests }}<br>
+                        <strong>Unique IPs:</strong> {{ recent_summary.unique_ips }}<br>
+                        {% if recent_summary.avg_response_time %}
+                        <strong>Avg Response:</strong> {{ recent_summary.avg_response_time|floatformat:0 }}ms
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Methods:</strong><br>
+                        {% for method, count in recent_summary.methods.items %}
+                        <span class="badge bg-secondary me-1">{{ method }}: {{ count }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Top Paths:</strong><br>
+                        {% for path, count in recent_summary.top_paths %}
+                        <small class="d-block">{{ path|truncatechars:30 }} ({{ count }})</small>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Filters -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-filter"></i> Filters
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Method</label>
+                        <select name="method" class="form-select">
+                            <option value="">All Methods</option>
+                            {% for method in available_methods %}
+                            <option value="{{ method }}" {% if method == current_method %}selected{% endif %}>
+                                {{ method }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Path contains</label>
+                        <input type="text" name="path" class="form-control" value="{{ current_path }}"
+                               placeholder="e.g., /api/">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">IP Address</label>
+                        <input type="text" name="ip" class="form-control" value="{{ current_ip }}"
+                               placeholder="e.g., 127.0.0.1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Date From</label>
+                        <input type="date" name="date_from" class="form-control" value="{{ current_date_from }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Date To</label>
+                        <input type="date" name="date_to" class="form-control" value="{{ current_date_to }}">
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Request Logs Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table"></i> Recent Requests
+                    {% if logs %}
+                    <small class="text-muted">({{ page_obj.paginator.count }} total)</small>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if logs %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="logsTable">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>Time</th>
+                            <th>Method</th>
+                            <th>Path</th>
+                            <th>IP Address</th>
+                            <th>Status</th>
+                            <th>Response Time</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>
+                                <small>{{ log.timestamp|date:"M d, H:i:s" }}</small>
+                            </td>
+                            <td>
+                                        <span class="badge 
+                                            {% if log.method == 'GET' %}bg-success
+                                            {% elif log.method == 'POST' %}bg-primary
+                                            {% elif log.method == 'PUT' %}bg-warning
+                                            {% elif log.method == 'PATCH' %}bg-info
+                                            {% elif log.method == 'DELETE' %}bg-danger
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ log.method }}
+                                        </span>
+                            </td>
+                            <td>
+                                <code class="text-dark">{{ log.path|truncatechars:50 }}</code>
+                                {% if log.query_string %}
+                                <small class="text-muted d-block">?{{ log.query_string|truncatechars:30 }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="font-monospace">{{ log.remote_ip }}</span>
+                            </td>
+                            <td>
+                                {% if log.response_status %}
+                                <span class="badge
+                                                {% if log.response_status < 300 %}bg-success
+                                                {% elif log.response_status < 400 %}bg-info
+                                                {% elif log.response_status < 500 %}bg-warning
+                                                {% else %}bg-danger{% endif %}">
+                                                {{ log.response_status }}
+                                            </span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.response_time_ms %}
+                                <span class="{% if log.response_time_ms > 1000 %}text-warning{% elif log.response_time_ms > 5000 %}text-danger{% endif %}">
+                                                {{ log.response_time_ms }}ms
+                                            </span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="showLogDetails({{ log.id }})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if is_paginated %}
+                <div class="card-footer">
+                    <nav aria-label="Request logs pagination">
+                        <ul class="pagination justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page=1">First</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                        <span class="page-link">
+                                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                        </span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.paginator.num_pages }}">Last</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                    <h3 class="text-muted">No Request Logs Found</h3>
+                    <p class="text-muted">No requests have been logged yet, or they don't match your current
+                        filters.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{%endblock%}

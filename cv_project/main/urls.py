@@ -9,4 +9,6 @@ urlpatterns = [
     path('', views.CVListView.as_view(), name='cv_list'),
     path('cv/<int:pk>/', views.CVDetailView.as_view(), name='cv_detail'),
     path('cv/<int:pk>/pdf/', views.cv_pdf_download, name='cv_pdf_download'),
+    path('logs/',views.RequestLogsView.as_view(), name='request_logs'),
+    path('logs/api/',views.request_logs_api, name='request_logs_api'),
 ]

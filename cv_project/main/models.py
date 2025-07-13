@@ -120,3 +120,77 @@ class Contact(models.Model):
 
     def __str__(self):
         return f"{self.contact_type}: {self.value}"
+
+
+class RequestLog(models.Model):
+    """
+    Model for logging HTTP requests for audit purposes.
+    """
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name="Request Time")
+    method = models.CharField(max_length=10, verbose_name="HTTP Method")
+    path = models.CharField(max_length=500, verbose_name="Request Path")
+    query_string = models.TextField(blank=True, verbose_name="Query String")
+    remote_ip = models.GenericIPAddressField(verbose_name="Remote IP Address")
+    user_agent = models.TextField(blank=True, verbose_name="User Agent")
+    response_status = models.IntegerField(null=True, blank=True, verbose_name="Response Status Code")
+    response_time_ms = models.IntegerField(null=True, blank=True, verbose_name="Response Time (ms)")
+
+    class Meta:
+        verbose_name = "Request Log"
+        verbose_name_plural = "Request Logs"
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['method']),
+            models.Index(fields=['path']),
+            models.Index(fields=['remote_ip']),
+        ]
+
+    def __str__(self):
+        return f"{self.method} {self.path} - {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    @property
+    def full_url(self):
+        """Reconstruct the full URL from path and query string."""
+        if self.query_string:
+            return f"{self.path}?{self.query_string}"
+        return self.path
+
+    @property
+    def response_time_seconds(self):
+        """Convert response time from milliseconds to seconds."""
+        if self.response_time_ms is not None:
+            return self.response_time_ms / 1000.0
+        return None
+
+    @classmethod
+    def get_recent_logs(cls, limit=10):
+        """Get the most recent request logs."""
+        return cls.objects.all()[:limit]
+
+    @classmethod
+    def get_stats(cls):
+        """Get basic statistics about logged requests."""
+        from django.db.models import Count, Avg
+
+        total_requests = cls.objects.count()
+        if total_requests == 0:
+            return {
+                'total_requests': 0,
+                'methods': {},
+                'avg_response_time': None,
+                'unique_ips': 0
+            }
+
+        methods = dict(cls.objects.values('method').annotate(count=Count('method')).values_list('method', 'count'))
+        avg_response_time = cls.objects.filter(response_time_ms__isnull=False).aggregate(
+            avg_time=Avg('response_time_ms')
+        )['avg_time']
+        unique_ips = cls.objects.values('remote_ip').distinct().count()
+
+        return {
+            'total_requests': total_requests,
+            'methods': methods,
+            'avg_response_time': avg_response_time,
+            'unique_ips': unique_ips
+        }

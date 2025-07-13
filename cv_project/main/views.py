@@ -1,6 +1,7 @@
 """
 Views for the CV management system.
 """
+from datetime import datetime, timedelta
 
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
@@ -13,7 +14,7 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 from io import BytesIO
-from .models import CV
+from .models import CV, RequestLog
 
 
 class CVListView(ListView):
@@ -274,3 +275,145 @@ def cv_pdf_download(request, pk):
 
     return response
 
+
+class RequestLogsView(ListView):
+    """
+    View to display recent request logs with filtering and pagination.
+    """
+    model = RequestLog
+    template_name = 'main/request_logs.html'
+    context_object_name = 'logs'
+    paginate_by = 10
+
+    def get_queryset(self):
+        """
+        Get filtered and ordered request logs.
+        """
+        queryset = RequestLog.objects.all().order_by('-timestamp')
+
+        # Filter by method if specified
+        method = self.request.GET.get('method')
+        if method:
+            queryset = queryset.filter(method=method)
+
+        # Filter by path if specified
+        path = self.request.GET.get('path')
+        if path:
+            queryset = queryset.filter(path__icontains=path)
+
+        # Filter by IP if specified
+        ip = self.request.GET.get('ip')
+        if ip:
+            queryset = queryset.filter(remote_ip__icontains=ip)
+
+        # Filter by date range
+        date_from = self.request.GET.get('date_from')
+        date_to = self.request.GET.get('date_to')
+
+        if date_from:
+            try:
+                date_from = datetime.strptime(date_from, '%Y-%m-%d')
+                queryset = queryset.filter(timestamp__gte=date_from)
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                date_to = datetime.strptime(date_to, '%Y-%m-%d')
+                # Add 24 hours to include the entire day
+                date_to = date_to + timedelta(days=1)
+                queryset = queryset.filter(timestamp__lt=date_to)
+            except ValueError:
+                pass
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        """
+        Add additional context data for the template.
+        """
+        context = super().get_context_data(**kwargs)
+
+        # Add statistics
+        context['stats'] = RequestLog.get_stats()
+
+        # Add filter values to maintain state in form
+        context['current_method'] = self.request.GET.get('method', '')
+        context['current_path'] = self.request.GET.get('path', '')
+        context['current_ip'] = self.request.GET.get('ip', '')
+        context['current_date_from'] = self.request.GET.get('date_from', '')
+        context['current_date_to'] = self.request.GET.get('date_to', '')
+
+        # Add available methods for filter dropdown
+        context['available_methods'] = RequestLog.objects.values_list(
+            'method', flat=True
+        ).distinct().order_by('method')
+
+        # Recent activity summary
+        context['recent_summary'] = self._get_recent_summary()
+
+        return context
+
+    def _get_recent_summary(self):
+        """
+        Get summary of recent activity (last 24 hours).
+        """
+        yesterday = datetime.now() - timedelta(hours=24)
+        recent_logs = RequestLog.objects.filter(timestamp__gte=yesterday)
+
+        if not recent_logs.exists():
+            return None
+
+        from django.db.models import Count, Avg
+
+        summary = {
+            'total_requests': recent_logs.count(),
+            'unique_ips': recent_logs.values('remote_ip').distinct().count(),
+            'avg_response_time': recent_logs.filter(
+                response_time_ms__isnull=False
+            ).aggregate(avg_time=Avg('response_time_ms'))['avg_time'],
+            'methods': dict(recent_logs.values('method').annotate(
+                count=Count('method')
+            ).values_list('method', 'count')),
+            'top_paths': list(recent_logs.values('path').annotate(
+                count=Count('path')
+            ).order_by('-count')[:5].values_list('path', 'count')),
+        }
+
+        return summary
+
+
+def request_logs_api(request):
+    """
+    API endpoint for request logs data (for AJAX requests).
+    Returns JSON data for dynamic updates.
+    """
+    from django.http import JsonResponse
+    from django.core.serializers.json import DjangoJSONEncoder
+
+    # Get recent logs
+    logs = RequestLog.get_recent_logs(20)
+
+    # Convert to JSON-serializable format
+    logs_data = []
+    for log in logs:
+        logs_data.append({
+            'id': log.id,
+            'timestamp': log.timestamp.isoformat(),
+            'method': log.method,
+            'path': log.path,
+            'query_string': log.query_string,
+            'remote_ip': log.remote_ip,
+            'response_status': log.response_status,
+            'response_time_ms': log.response_time_ms,
+            'full_url': log.full_url,
+        })
+
+    # Get statistics
+    stats = RequestLog.get_stats()
+
+    return JsonResponse({
+        'logs': logs_data,
+        'stats': stats,
+        'count': len(logs_data)
+    }, encoder=DjangoJSONEncoder)
