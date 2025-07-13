@@ -1,0 +1,138 @@
+[
+  {
+    "model": "main.cv",
+    "pk": 1,
+    "fields": {
+      "firstname": "John",
+      "lastname": "Doe",
+      "email": "john.doe@example.com",
+      "phone": "+1-555-123-4567",
+      "bio": "Experienced Full Stack Developer with 5+ years of expertise in Python, Django, and React. Passionate about building scalable web applications and solving complex problems. Strong background in database design, API development, and cloud deployment. Always eager to learn new technologies and contribute to innovative projects.",
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:30:00Z"
+    }
+  },
+  {
+    "model": "main.skill",
+    "pk": 1,
+    "fields": {
+      "cv": 1,
+      "name": "Python",
+      "proficiency": "expert"
+    }
+  },
+  {
+    "model": "main.skill",
+    "pk": 2,
+    "fields": {
+      "cv": 1,
+      "name": "Django",
+      "proficiency": "expert"
+    }
+  },
+  {
+    "model": "main.skill",
+    "pk": 3,
+    "fields": {
+      "cv": 1,
+      "name": "React",
+      "proficiency": "advanced"
+    }
+  },
+  {
+    "model": "main.skill",
+    "pk": 4,
+    "fields": {
+      "cv": 1,
+      "name": "PostgreSQL",
+      "proficiency": "advanced"
+    }
+  },
+  {
+    "model": "main.skill",
+    "pk": 5,
+    "fields": {
+      "cv": 1,
+      "name": "Docker",
+      "proficiency": "intermediate"
+    }
+  },
+  {
+    "model": "main.skill",
+    "pk": 6,
+    "fields": {
+      "cv": 1,
+      "name": "AWS",
+      "proficiency": "intermediate"
+    }
+  },
+  {
+    "model": "main.project",
+    "pk": 1,
+    "fields": {
+      "cv": 1,
+      "title": "E-Commerce Platform",
+      "description": "Built a comprehensive e-commerce platform using Django and React. Implemented features including user authentication, product catalog, shopping cart, payment processing with Stripe, and order management. The application serves over 10,000 users daily.",
+      "technologies": "Django, React, PostgreSQL, Redis, Celery, Stripe API, Docker",
+      "url": "https://github.com/johndoe/ecommerce-platform",
+      "start_date": "2023-06-01",
+      "end_date": "2023-12-15"
+    }
+  },
+  {
+    "model": "main.project",
+    "pk": 2,
+    "fields": {
+      "cv": 1,
+      "title": "Task Management API",
+      "description": "Developed a RESTful API for task management with team collaboration features. Includes real-time notifications, file attachments, and detailed reporting. Implemented comprehensive testing and deployed using CI/CD pipeline.",
+      "technologies": "Django REST Framework, WebSockets, PostgreSQL, Redis, GitHub Actions",
+      "url": "https://github.com/johndoe/task-api",
+      "start_date": "2023-01-10",
+      "end_date": "2023-05-20"
+    }
+  },
+  {
+    "model": "main.project",
+    "pk": 3,
+    "fields": {
+      "cv": 1,
+      "title": "Data Analytics Dashboard",
+      "description": "Created an interactive dashboard for business intelligence using Django and Chart.js. Features include real-time data visualization, custom report generation, and automated email reports. Currently serving 500+ business users.",
+      "technologies": "Django, Chart.js, PostgreSQL, Pandas, Celery, Bootstrap",
+      "url": "",
+      "start_date": "2024-01-01",
+      "end_date": null
+    }
+  },
+  {
+    "model": "main.contact",
+    "pk": 1,
+    "fields": {
+      "cv": 1,
+      "contact_type": "linkedin",
+      "value": "john-doe-developer",
+      "url": "https://linkedin.com/in/john-doe-developer"
+    }
+  },
+  {
+    "model": "main.contact",
+    "pk": 2,
+    "fields": {
+      "cv": 1,
+      "contact_type": "github",
+      "value": "johndoe",
+      "url": "https://github.com/johndoe"
+    }
+  },
+  {
+    "model": "main.contact",
+    "pk": 3,
+    "fields": {
+      "cv": 1,
+      "contact_type": "website",
+      "value": "johndoe.dev",
+      "url": "https://johndoe.dev"
+    }
+  }
+]
