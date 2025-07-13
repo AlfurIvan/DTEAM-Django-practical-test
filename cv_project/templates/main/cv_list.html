@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}CV List - CV Management System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">
+                <i class="fas fa-users"></i> CV List
+            </h1>
+            <a href="/admin/main/cv/add/" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add New CV
+            </a>
+        </div>
+
+        {% if cvs %}
+            <div class="row">
+                {% for cv in cvs %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title">
+                                    <i class="fas fa-user"></i> {{ cv.full_name }}
+                                </h5>
+                                <p class="card-text text-muted">
+                                    <i class="fas fa-envelope"></i> {{ cv.email }}
+                                </p>
+                                
+                                {% if cv.phone %}
+                                    <p class="card-text text-muted">
+                                        <i class="fas fa-phone"></i> {{ cv.phone }}
+                                    </p>
+                                {% endif %}
+                                
+                                <p class="card-text">
+                                    {{ cv.bio|truncatewords:20 }}
+                                </p>
+                                
+                                <!-- Skills Preview -->
+                                {% if cv.skills.all %}
+                                    <div class="mb-3">
+                                        <h6 class="text-muted mb-2">Skills:</h6>
+                                        {% for skill in cv.skills.all|slice:":3" %}
+                                            <span class="badge bg-secondary skill-badge">{{ skill.name }}</span>
+                                        {% endfor %}
+                                        {% if cv.skills.count > 3 %}
+                                            <span class="text-muted">+{{ cv.skills.count|add:"-3" }} more</span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                                
+                                <!-- Projects Count -->
+                                {% if cv.projects.all %}
+                                    <p class="text-muted mb-3">
+                                        <i class="fas fa-project-diagram"></i> 
+                                        {{ cv.projects.count }} project{{ cv.projects.count|pluralize }}
+                                    </p>
+                                {% endif %}
+                                
+                                <div class="mt-auto">
+                                    <a href="{% url 'cv_detail' cv.pk %}" class="btn btn-outline-primary">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="card-footer text-muted">
+                                <small>
+                                    <i class="fas fa-calendar"></i> 
+                                    Created {{ cv.created_at|date:"M d, Y" }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+                <nav aria-label="CV pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">First</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                <h3 class="text-muted">No CVs Found</h3>
+                <p class="text-muted">Start by creating your first CV!</p>
+                <a href="/admin/main/cv/add/" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create First CV
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
