@@ -272,7 +272,7 @@ class CVDetailViewTest(TestCase):
 
     def test_cv_detail_view_query_optimization(self):
         """Test that CV detail view uses optimized queries."""
-        with self.assertNumQueries(6):  # Expecting optimized queries
+        with self.assertNumQueries(6):
             response = self.client.get(reverse('cv_detail', kwargs={'pk': self.cv.pk}))
             # Access related objects to trigger queries
             cv = response.context['cv']
@@ -427,6 +427,9 @@ class RequestLogModelTest(TestCase):
 
     def test_get_stats_class_method(self):
         """Test get_stats class method."""
+        # Clear existing data first
+        RequestLog.objects.all().delete()
+
         # Test with no logs
         stats = RequestLog.get_stats()
         expected_empty = {

@@ -101,8 +101,7 @@ docker-compose logs celery
 # Run Django commands
 docker-compose exec web python manage.py migrate
 docker-compose exec web python manage.py shell
-docker-compose exec web python manage.py test
-
+docker-compose exec web python manage.py test --settings=core.test_settings
 # Create superuser
 docker-compose exec web python manage.py createsuperuser
 

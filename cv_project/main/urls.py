@@ -11,7 +11,8 @@ urlpatterns = [
     path('cv/<int:pk>/pdf/', views.cv_pdf_download, name='cv_pdf_download'),
     path('cv/<int:pk>/email/', views.email_cv_view, name='cv_email'),
     path('task-status/<str:task_id>/', views.check_email_task_status, name='check_task_status'),
-    path('logs/',views.RequestLogsView.as_view(), name='request_logs'),
-    path('logs/api/',views.request_logs_api, name='request_logs_api'),
+    path('logs/', views.RequestLogsView.as_view(), name='request_logs'),
+    path('logs/api/', views.request_logs_api, name='request_logs_api'),
     path('settings/', views.SettingsView.as_view(), name='settings'),
+    path('api/settings/', views.settings_api, name='settings_api'),
 ]
