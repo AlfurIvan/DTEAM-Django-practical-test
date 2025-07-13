@@ -3,6 +3,7 @@ Celery tasks for CV management system.
 """
 import logging
 import re
+import sys
 from datetime import timedelta
 
 from celery import shared_task
@@ -355,7 +356,15 @@ def translate_cv_content(self, cv_id, target_language):
         }
 
     except Exception as e:
-        if self.request.retries >= self.max_retries:
+        # Check if we're in test mode to avoid retry loops
+        import os
+        is_test_mode = (
+            'test' in sys.argv or 
+            os.environ.get('DJANGO_SETTINGS_MODULE', '').endswith('test_settings') or
+            getattr(self, '_called_from_test', False)
+        )
+        
+        if self.request.retries >= self.max_retries or is_test_mode:
             logger.error(f"Failed to translate CV {cv_id} after {self.max_retries} retries: {str(e)}")
             return {
                 'success': False,
@@ -363,13 +372,6 @@ def translate_cv_content(self, cv_id, target_language):
             }
         else:
             logger.warning(f"Retrying CV translation task (attempt {self.request.retries + 1}): {str(e)}")
-            # In test mode, don't actually retry to avoid infinite loops
-            import sys
-            if 'test' in sys.argv or hasattr(self, '_called_from_test'):
-                return {
-                    'success': False,
-                    'error': f'Translation failed after {self.max_retries} attempts: {str(e)}'
-                }
             raise self.retry(exc=e, countdown=30)
 
 
