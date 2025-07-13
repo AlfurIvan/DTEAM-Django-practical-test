@@ -208,3 +208,4 @@ __marimo__/
 
 #project
 /cv_project/main/migrations/
+/cv_project/staticfiles/
