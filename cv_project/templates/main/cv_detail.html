@@ -19,7 +19,7 @@
 
         <!-- Header -->
         <div class="row mb-4">
-            <div class="col-md-8">
+            <div class="col-md-6">
                 <h1 class="h2">
                     <i class="fas fa-user"></i> {{ cv.full_name }}
                 </h1>
@@ -30,16 +30,61 @@
                     </p>
                 {% endif %}
             </div>
-            <div class="col-md-4 text-md-end">
-                <a href="{% url 'cv_pdf_download' cv.pk %}" class="btn btn-danger me-2" target="_blank">
-                    <i class="fas fa-file-pdf"></i> Download PDF
-                </a>
-                <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#emailModal">
-                    <i class="fas fa-envelope"></i> Send PDF to Email
-                </button>
-                <a href="/admin/main/cv/{{ cv.pk }}/change/" class="btn btn-outline-secondary">
-                    <i class="fas fa-edit"></i> Edit CV
-                </a>
+            <div class="col-md-6">
+                <!-- Translation Controls -->
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <select class="form-select" id="languageSelect">
+                            <option value="">Select language for translation...</option>
+                            <option value="cornish">Cornish</option>
+                            <option value="manx">Manx</option>
+                            <option value="breton">Breton</option>
+                            <option value="inuktitut">Inuktitut</option>
+                            <option value="kalaallisut">Kalaallisut</option>
+                            <option value="romani">Romani</option>
+                            <option value="occitan">Occitan</option>
+                            <option value="ladino">Ladino</option>
+                            <option value="northern_sami">Northern Sami</option>
+                            <option value="upper_sorbian">Upper Sorbian</option>
+                            <option value="kashubian">Kashubian</option>
+                            <option value="zazaki">Zazaki</option>
+                            <option value="chuvash">Chuvash</option>
+                            <option value="livonian">Livonian</option>
+                            <option value="tsakonian">Tsakonian</option>
+                            <option value="saramaccan">Saramaccan</option>
+                            <option value="bislama">Bislama</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-warning w-100" id="translateBtn" disabled>
+                            <i class="fas fa-language"></i> Translate
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{% url 'cv_pdf_download' cv.pk %}" class="btn btn-danger" target="_blank">
+                        <i class="fas fa-file-pdf"></i> Download PDF
+                    </a>
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#emailModal">
+                        <i class="fas fa-envelope"></i> Send PDF to Email
+                    </button>
+                    <button type="button" class="btn btn-info d-none" id="resetTranslationBtn">
+                        <i class="fas fa-undo"></i> Show Original
+                    </button>
+                    <a href="/admin/main/cv/{{ cv.pk }}/change/" class="btn btn-outline-secondary">
+                        <i class="fas fa-edit"></i> Edit CV
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Translation Status Alert -->
+        <div id="translationAlert" class="alert alert-info d-none" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-spinner fa-spin me-2"></i>
+                <span id="translationStatus">Preparing translation...</span>
             </div>
         </div>
 
@@ -105,35 +150,45 @@
         </div>
 
         <!-- Biography -->
-        <div class="card mb-4">
+        <div class="card mb-4" id="biographyCard">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-user-circle"></i> Biography
                 </h5>
             </div>
             <div class="card-body">
-                <p>{{ cv.bio|linebreaks }}</p>
+                <div class="original-content">
+                    <p>{{ cv.bio|linebreaks }}</p>
+                </div>
+                <div class="translated-content d-none">
+                    <!-- Translated content will be inserted here -->
+                </div>
             </div>
         </div>
 
         <!-- Skills -->
         {% if cv.skills.all %}
-            <div class="card mb-4">
+            <div class="card mb-4" id="skillsCard">
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="fas fa-cogs"></i> Skills
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        {% for skill in cv.skills.all %}
-                            <div class="col-md-6 col-lg-4 mb-3">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="fw-bold">{{ skill.name }}</span>
-                                    <span class="badge bg-primary">{{ skill.get_proficiency_display }}</span>
+                    <div class="original-content">
+                        <div class="row">
+                            {% for skill in cv.skills.all %}
+                                <div class="col-md-6 col-lg-4 mb-3" data-skill-id="{{ skill.id }}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold skill-name">{{ skill.name }}</span>
+                                        <span class="badge bg-primary">{{ skill.get_proficiency_display }}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        {% endfor %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="translated-content d-none">
+                        <!-- Translated skills will be inserted here -->
                     </div>
                 </div>
             </div>
@@ -141,58 +196,63 @@
 
         <!-- Projects -->
         {% if cv.projects.all %}
-            <div class="card mb-4">
+            <div class="card mb-4" id="projectsCard">
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="fas fa-project-diagram"></i> Projects
                     </h5>
                 </div>
                 <div class="card-body">
-                    {% for project in cv.projects.all %}
-                        <div class="card project-card mb-3">
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-8">
-                                        <h6 class="card-title">
-                                            {% if project.url %}
-                                                <a href="{{ project.url }}" target="_blank" class="text-decoration-none">
+                    <div class="original-content">
+                        {% for project in cv.projects.all %}
+                            <div class="card project-card mb-3" data-project-id="{{ project.id }}">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <h6 class="card-title project-title">
+                                                {% if project.url %}
+                                                    <a href="{{ project.url }}" target="_blank" class="text-decoration-none">
+                                                        {{ project.title }}
+                                                        <i class="fas fa-external-link-alt fa-sm"></i>
+                                                    </a>
+                                                {% else %}
                                                     {{ project.title }}
-                                                    <i class="fas fa-external-link-alt fa-sm"></i>
-                                                </a>
-                                            {% else %}
-                                                {{ project.title }}
-                                            {% endif %}
-                                        </h6>
-                                        <p class="card-text">{{ project.description }}</p>
+                                                {% endif %}
+                                            </h6>
+                                            <p class="card-text project-description">{{ project.description }}</p>
 
-                                        {% if project.technologies_list %}
-                                            <div class="mb-2">
-                                                <strong>Technologies:</strong>
-                                                {% for tech in project.technologies_list %}
-                                                    <span class="badge bg-secondary me-1">{{ tech }}</span>
-                                                {% endfor %}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-md-4 text-md-end">
-                                        <small class="text-muted">
-                                            <i class="fas fa-calendar"></i>
-                                            {{ project.start_date|date:"M Y" }}
-                                            {% if project.end_date %}
-                                                - {{ project.end_date|date:"M Y" }}
-                                            {% else %}
-                                                - Present
+                                            {% if project.technologies_list %}
+                                                <div class="mb-2">
+                                                    <strong>Technologies:</strong>
+                                                    {% for tech in project.technologies_list %}
+                                                        <span class="badge bg-secondary me-1">{{ tech }}</span>
+                                                    {% endfor %}
+                                                </div>
                                             {% endif %}
-                                        </small>
-                                        {% if project.is_ongoing %}
-                                            <br>
-                                            <span class="badge bg-success mt-1">Ongoing</span>
-                                        {% endif %}
+                                        </div>
+                                        <div class="col-md-4 text-md-end">
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar"></i>
+                                                {{ project.start_date|date:"M Y" }}
+                                                {% if project.end_date %}
+                                                    - {{ project.end_date|date:"M Y" }}
+                                                {% else %}
+                                                    - Present
+                                                {% endif %}
+                                            </small>
+                                            {% if project.is_ongoing %}
+                                                <br>
+                                                <span class="badge bg-success mt-1">Ongoing</span>
+                                            {% endif %}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
+                    <div class="translated-content d-none">
+                        <!-- Translated projects will be inserted here -->
+                    </div>
                 </div>
             </div>
         {% endif %}
@@ -257,6 +317,7 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Email functionality variables
     const emailForm = document.getElementById('emailForm');
     const sendEmailBtn = document.getElementById('sendEmailBtn');
     const recipientEmailInput = document.getElementById('recipientEmail');
@@ -264,10 +325,284 @@ document.addEventListener('DOMContentLoaded', function() {
     const emailError = document.getElementById('emailError');
     const modal = new bootstrap.Modal(document.getElementById('emailModal'));
 
+    // Translation functionality variables
+    const languageSelect = document.getElementById('languageSelect');
+    const translateBtn = document.getElementById('translateBtn');
+    const resetTranslationBtn = document.getElementById('resetTranslationBtn');
+    const translationAlert = document.getElementById('translationAlert');
+    const translationStatus = document.getElementById('translationStatus');
+
+    // Store original content
+    let originalContent = null;
+    let currentTranslationTaskId = null;
+    let translationCheckInterval = null;
+
     // Email validation regex
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-    // Validate email on input
+    // Translation functionality
+    languageSelect.addEventListener('change', function() {
+        translateBtn.disabled = !this.value;
+    });
+
+    translateBtn.addEventListener('click', function() {
+        const targetLanguage = languageSelect.value;
+        if (!targetLanguage) {
+            showAlert('Please select a language for translation.', 'warning');
+            return;
+        }
+
+        startTranslation(targetLanguage);
+    });
+
+    resetTranslationBtn.addEventListener('click', function() {
+        resetToOriginalContent();
+    });
+
+    function startTranslation(targetLanguage) {
+        // Store original content if not already stored
+        if (!originalContent) {
+            storeOriginalContent();
+        }
+
+        // Show loading state
+        showTranslationAlert('Preparing translation...', 'info');
+        translateBtn.disabled = true;
+        languageSelect.disabled = true;
+
+        // Send translation request
+        fetch(`{% url 'cv_translate' cv.pk %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                target_language: targetLanguage
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentTranslationTaskId = data.task_id;
+                updateTranslationAlert(`Translating to ${data.target_language}...`, 'info');
+                startTranslationStatusCheck();
+            } else {
+                showTranslationAlert(data.error, 'danger');
+                resetTranslationState();
+            }
+        })
+        .catch(error => {
+            console.error('Translation request error:', error);
+            showTranslationAlert('Failed to start translation. Please try again.', 'danger');
+            resetTranslationState();
+        });
+    }
+
+    function startTranslationStatusCheck() {
+        if (translationCheckInterval) {
+            clearInterval(translationCheckInterval);
+        }
+
+        let checkCount = 0;
+        const maxChecks = 30; // 30 checks = 60 seconds max
+
+        translationCheckInterval = setInterval(() => {
+            checkCount++;
+
+            fetch(`{% url 'check_translation_status' 'TASK_ID' %}`.replace('TASK_ID', currentTranslationTaskId))
+            .then(response => response.json())
+            .then(data => {
+                if (data.state === 'SUCCESS') {
+                    clearInterval(translationCheckInterval);
+                    applyTranslation(data.translated_data, data.target_language);
+                } else if (data.state === 'FAILURE') {
+                    clearInterval(translationCheckInterval);
+                    showTranslationAlert(`Translation failed: ${data.error || 'Unknown error'}`, 'danger');
+                    resetTranslationState();
+                } else if (data.state === 'PROGRESS') {
+                    updateTranslationAlert('Translation in progress...', 'info');
+                } else if (checkCount >= maxChecks) {
+                    clearInterval(translationCheckInterval);
+                    showTranslationAlert('Translation is taking longer than expected. Please try again.', 'warning');
+                    resetTranslationState();
+                }
+            })
+            .catch(error => {
+                console.error('Translation status check error:', error);
+                if (checkCount >= maxChecks) {
+                    clearInterval(translationCheckInterval);
+                    showTranslationAlert('Failed to check translation status.', 'danger');
+                    resetTranslationState();
+                }
+            });
+        }, 2000); // Check every 2 seconds
+    }
+
+    function storeOriginalContent() {
+        originalContent = {
+            bio: document.querySelector('#biographyCard .original-content').innerHTML,
+            skills: document.querySelector('#skillsCard .original-content').innerHTML,
+            projects: document.querySelector('#projectsCard .original-content').innerHTML
+        };
+    }
+
+    function applyTranslation(translatedData, targetLanguage) {
+        // Apply translated biography
+        if (translatedData.bio) {
+            const bioTranslatedDiv = document.querySelector('#biographyCard .translated-content');
+            bioTranslatedDiv.innerHTML = `<p>${translatedData.bio.replace(/\n/g, '<br>')}</p>`;
+            document.querySelector('#biographyCard .original-content').classList.add('d-none');
+            bioTranslatedDiv.classList.remove('d-none');
+        }
+
+        // Apply translated skills
+        if (translatedData.skills && translatedData.skills.length > 0) {
+            const skillsTranslatedDiv = document.querySelector('#skillsCard .translated-content');
+            let skillsHtml = '<div class="row">';
+
+            translatedData.skills.forEach(skill => {
+                skillsHtml += `
+                    <div class="col-md-6 col-lg-4 mb-3" data-skill-id="${skill.id}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold skill-name">${skill.name}</span>
+                            <span class="badge bg-primary">${skill.proficiency}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            skillsHtml += '</div>';
+            skillsTranslatedDiv.innerHTML = skillsHtml;
+            document.querySelector('#skillsCard .original-content').classList.add('d-none');
+            skillsTranslatedDiv.classList.remove('d-none');
+        }
+
+        // Apply translated projects
+        if (translatedData.projects && translatedData.projects.length > 0) {
+            const projectsTranslatedDiv = document.querySelector('#projectsCard .translated-content');
+            let projectsHtml = '';
+
+            translatedData.projects.forEach(project => {
+                const startDate = new Date(project.start_date).toLocaleDateString('en-US', {month: 'short', year: 'numeric'});
+                const endDate = project.end_date ?
+                    new Date(project.end_date).toLocaleDateString('en-US', {month: 'short', year: 'numeric'}) :
+                    'Present';
+
+                let technologiesHtml = '';
+                if (project.technologies) {
+                    const techList = project.technologies.split(',').map(tech => tech.trim());
+                    technologiesHtml = techList.map(tech =>
+                        `<span class="badge bg-secondary me-1">${tech}</span>`
+                    ).join('');
+                }
+
+                projectsHtml += `
+                    <div class="card project-card mb-3" data-project-id="${project.id}">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6 class="card-title project-title">
+                                        ${project.url ?
+                                            `<a href="${project.url}" target="_blank" class="text-decoration-none">
+                                                ${project.title}
+                                                <i class="fas fa-external-link-alt fa-sm"></i>
+                                            </a>` :
+                                            project.title
+                                        }
+                                    </h6>
+                                    <p class="card-text project-description">${project.description}</p>
+                                    ${technologiesHtml ?
+                                        `<div class="mb-2">
+                                            <strong>Technologies:</strong>
+                                            ${technologiesHtml}
+                                        </div>` : ''
+                                    }
+                                </div>
+                                <div class="col-md-4 text-md-end">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar"></i>
+                                        ${startDate} - ${endDate}
+                                    </small>
+                                    ${project.is_ongoing ?
+                                        '<br><span class="badge bg-success mt-1">Ongoing</span>' : ''
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            projectsTranslatedDiv.innerHTML = projectsHtml;
+            document.querySelector('#projectsCard .original-content').classList.add('d-none');
+            projectsTranslatedDiv.classList.remove('d-none');
+        }
+
+        // Show success message and reset button
+        showTranslationAlert(`Successfully translated to ${targetLanguage}!`, 'success');
+        resetTranslationBtn.classList.remove('d-none');
+
+        // Keep translate button and language select disabled
+        setTimeout(() => {
+            hideTranslationAlert();
+        }, 3000);
+    }
+
+    function resetToOriginalContent() {
+        if (!originalContent) return;
+
+        // Show original content, hide translated
+        document.querySelector('#biographyCard .original-content').classList.remove('d-none');
+        document.querySelector('#biographyCard .translated-content').classList.add('d-none');
+
+        if (document.querySelector('#skillsCard')) {
+            document.querySelector('#skillsCard .original-content').classList.remove('d-none');
+            document.querySelector('#skillsCard .translated-content').classList.add('d-none');
+        }
+
+        if (document.querySelector('#projectsCard')) {
+            document.querySelector('#projectsCard .original-content').classList.remove('d-none');
+            document.querySelector('#projectsCard .translated-content').classList.add('d-none');
+        }
+
+        // Reset UI state
+        resetTranslationState();
+        hideTranslationAlert();
+        resetTranslationBtn.classList.add('d-none');
+        languageSelect.value = '';
+    }
+
+    function resetTranslationState() {
+        translateBtn.disabled = true;
+        languageSelect.disabled = false;
+        currentTranslationTaskId = null;
+
+        if (translationCheckInterval) {
+            clearInterval(translationCheckInterval);
+            translationCheckInterval = null;
+        }
+    }
+
+    function showTranslationAlert(message, type) {
+        translationAlert.className = `alert alert-${type}`;
+        translationAlert.classList.remove('d-none');
+        updateTranslationAlert(message, type);
+    }
+
+    function updateTranslationAlert(message, type) {
+        const icon = type === 'info' ? 'fa-spinner fa-spin' :
+                    type === 'success' ? 'fa-check-circle' :
+                    type === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle';
+
+        translationStatus.innerHTML = `<i class="fas ${icon} me-2"></i>${message}`;
+    }
+
+    function hideTranslationAlert() {
+        translationAlert.classList.add('d-none');
+    }
+
+    // Email validation on input
     recipientEmailInput.addEventListener('input', function() {
         const email = this.value.trim();
         if (email && !emailRegex.test(email)) {
@@ -337,7 +672,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Optional: Check task status
                 if (data.task_id) {
-                    checkTaskStatus(data.task_id);
+                    checkEmailTaskStatus(data.task_id);
                 }
             } else {
                 showAlert(`❌ ${data.error}`, 'danger');
@@ -355,8 +690,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Function to check task status
-    function checkTaskStatus(taskId) {
+    // Function to check email task status
+    function checkEmailTaskStatus(taskId) {
         let checkCount = 0;
         const maxChecks = 10;
         const checkInterval = 2000; // 2 seconds

@@ -544,7 +544,7 @@ def email_cv_view(request, pk):
         if not email:
             return JsonResponse({'success': False, 'error': 'Email address is required'}, status=400)
 
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
         if not re.match(email_pattern, email):
             return JsonResponse({'success': False, 'error': 'Please enter a valid email address'}, status=400)
 
@@ -569,6 +569,92 @@ def email_cv_view(request, pk):
         return JsonResponse({
             'success': False,
             'error': f'An unexpected error occurred: {str(e)}'
+        }, status=500)
+
+
+def translate_cv_view(request, pk):
+    """Handle CV translation via AJAX."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        cv = get_object_or_404(CV, pk=pk)
+
+        # Parse and validate JSON data
+        try:
+            data = json.loads(request.body)
+            target_language = data.get('target_language', '').strip()
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+
+        # Validate target language
+        if not target_language:
+            return JsonResponse({'success': False, 'error': 'Target language is required'}, status=400)
+
+        # Define supported languages
+        supported_languages = {
+            'cornish': 'Cornish',
+            'manx': 'Manx',
+            'breton': 'Breton',
+            'inuktitut': 'Inuktitut',
+            'kalaallisut': 'Kalaallisut',
+            'romani': 'Romani',
+            'occitan': 'Occitan',
+            'ladino': 'Ladino',
+            'northern_sami': 'Northern Sami',
+            'upper_sorbian': 'Upper Sorbian',
+            'kashubian': 'Kashubian',
+            'zazaki': 'Zazaki',
+            'chuvash': 'Chuvash',
+            'livonian': 'Livonian',
+            'tsakonian': 'Tsakonian',
+            'saramaccan': 'Saramaccan',
+            'bislama': 'Bislama'
+        }
+
+        if target_language not in supported_languages:
+            return JsonResponse({
+                'success': False,
+                'error': f'Unsupported language: {target_language}'
+            }, status=400)
+
+        # Check if OpenAI API key is configured
+        if not getattr(settings, 'OPENAI_API_KEY', None):
+            return JsonResponse({
+                'success': False,
+                'error': 'Translation service is not configured. Please contact administrator.'
+            }, status=503)
+
+        # Queue translation task
+        from .tasks import translate_cv_content
+
+        task = translate_cv_content.delay(
+            cv_id=cv.pk,
+            target_language=supported_languages[target_language]
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Translation to {supported_languages[target_language]} started...',
+            'task_id': task.id,
+            'cv_name': cv.full_name,
+            'target_language': supported_languages[target_language],
+            'target_language_key': target_language
+        })
+
+    except CV.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'CV not found'
+        }, status=404)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Translation request failed: {str(e)}")
+
+        return JsonResponse({
+            'success': False,
+            'error': 'Translation service is currently unavailable. Please try again later.'
         }, status=500)
 
 
@@ -599,4 +685,62 @@ def check_email_task_status(request, task_id):
         return JsonResponse({
             'state': 'ERROR',
             'status': f'Error checking task status: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def check_translation_task_status(request, task_id):
+    """Check the status of a translation task."""
+    try:
+        from celery.result import AsyncResult
+        from core.celery import app as celery_app
+
+        task_result = AsyncResult(task_id, app=celery_app)
+
+        if task_result.state == 'PENDING':
+            response = {
+                'state': 'PENDING',
+                'status': 'Translation is being queued...'
+            }
+        elif task_result.state == 'PROGRESS':
+            response = {
+                'state': 'PROGRESS',
+                'status': 'Translation in progress...'
+            }
+        elif task_result.state == 'SUCCESS':
+            result = task_result.result
+            if result and result.get('success'):
+                response = {
+                    'state': 'SUCCESS',
+                    'status': 'Translation completed successfully!',
+                    'translated_data': result.get('translated_data'),
+                    'target_language': result.get('target_language'),
+                    'cv_name': result.get('cv_name')
+                }
+            else:
+                response = {
+                    'state': 'FAILURE',
+                    'status': 'Translation failed',
+                    'error': result.get('error', 'Unknown error occurred')
+                }
+        else:
+            # FAILURE or other states
+            error_msg = str(task_result.info) if task_result.info else 'Translation failed'
+            response = {
+                'state': task_result.state,
+                'status': 'Translation failed',
+                'error': error_msg
+            }
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error checking translation task status: {str(e)}")
+
+        return JsonResponse({
+            'state': 'ERROR',
+            'status': 'Error checking translation status',
+            'error': str(e)
         }, status=500)

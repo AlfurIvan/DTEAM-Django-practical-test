@@ -165,7 +165,27 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Add these sections to your core/settings.py file
+# OpenAI Configuration
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+TRANSLATION_SUPPORTED_LANGUAGES = {
+    'cornish': 'Cornish',
+    'manx': 'Manx',
+    'breton': 'Breton',
+    'inuktitut': 'Inuktitut',
+    'kalaallisut': 'Kalaallisut',
+    'romani': 'Romani',
+    'occitan': 'Occitan',
+    'ladino': 'Ladino',
+    'northern_sami': 'Northern Sami',
+    'upper_sorbian': 'Upper Sorbian',
+    'kashubian': 'Kashubian',
+    'zazaki': 'Zazaki',
+    'chuvash': 'Chuvash',
+    'livonian': 'Livonian',
+    'tsakonian': 'Tsakonian',
+    'saramaccan': 'Saramaccan',
+    'bislama': 'Bislama'
+}
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
