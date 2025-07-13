@@ -342,17 +342,7 @@ class CVPDFDownloadTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/pdf')
 
-@override_settings(
-    MIDDLEWARE=[
-        'django.middleware.security.SecurityMiddleware',
-        'django.contrib.sessions.middleware.SessionMiddleware',
-        'django.middleware.common.CommonMiddleware',
-        'django.middleware.csrf.CsrfViewMiddleware',
-        'django.contrib.auth.middleware.AuthenticationMiddleware',
-        'django.contrib.messages.middleware.MessageMiddleware',
-        'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    ]
-)
+
 class RequestLogModelTest(TestCase):
     """Test cases for RequestLog model."""
 
@@ -759,18 +749,6 @@ class RequestLogsViewTest(TestCase):
         self.assertIn('count', data)
 
 
-@override_settings(
-    # Disable middleware during tests to avoid async issues
-    MIDDLEWARE=[
-        'django.middleware.security.SecurityMiddleware',
-        'django.contrib.sessions.middleware.SessionMiddleware',
-        'django.middleware.common.CommonMiddleware',
-        'django.middleware.csrf.CsrfViewMiddleware',
-        'django.contrib.auth.middleware.AuthenticationMiddleware',
-        'django.contrib.messages.middleware.MessageMiddleware',
-        'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    ]
-)
 class RequestLoggingIntegrationTest(TestCase):
     """Integration tests for request logging functionality."""
 
