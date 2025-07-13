@@ -269,3 +269,70 @@ class CVDetailViewTest(TestCase):
             list(cv.skills.all())
             list(cv.projects.all())
             list(cv.contacts.all())
+
+
+class CVPDFDownloadTest(TestCase):
+    """Test cases for CV PDF download functionality."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.client = Client()
+        self.cv = CV.objects.create(
+            firstname="John",
+            lastname="Doe",
+            email="john@example.com",
+            bio="John's biography for PDF testing"
+        )
+        # Add some related data for richer PDF
+        Skill.objects.create(cv=self.cv, name="Python", proficiency="expert")
+        Project.objects.create(
+            cv=self.cv,
+            title="Test Project",
+            description="Test description for PDF",
+            technologies="Python, Django",
+            start_date=date(2023, 1, 1)
+        )
+        Contact.objects.create(
+            cv=self.cv,
+            contact_type="github",
+            value="johndoe",
+            url="https://github.com/johndoe"
+        )
+
+    def test_cv_pdf_download_status_code(self):
+        """Test that CV PDF download returns 200."""
+        response = self.client.get(reverse('cv_pdf_download', kwargs={'pk': self.cv.pk}))
+        self.assertEqual(response.status_code, 200)
+
+    def test_cv_pdf_download_content_type(self):
+        """Test that CV PDF download returns correct content type."""
+        response = self.client.get(reverse('cv_pdf_download', kwargs={'pk': self.cv.pk}))
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+
+    def test_cv_pdf_download_filename(self):
+        """Test that CV PDF download has correct filename."""
+        response = self.client.get(reverse('cv_pdf_download', kwargs={'pk': self.cv.pk}))
+        expected_filename = 'attachment; filename="John_Doe_CV.pdf"'
+        self.assertEqual(response['Content-Disposition'], expected_filename)
+
+    def test_cv_pdf_download_content_length(self):
+        """Test that CV PDF download has content."""
+        response = self.client.get(reverse('cv_pdf_download', kwargs={'pk': self.cv.pk}))
+        self.assertGreater(len(response.content), 1000)  # PDF should be substantial
+
+    def test_cv_pdf_download_404(self):
+        """Test that CV PDF download returns 404 for non-existent CV."""
+        response = self.client.get(reverse('cv_pdf_download', kwargs={'pk': 9999}))
+        self.assertEqual(response.status_code, 404)
+
+    def test_cv_pdf_download_with_special_characters(self):
+        """Test PDF download with special characters in name."""
+        cv_special = CV.objects.create(
+            firstname="José María",
+            lastname="García-López",
+            email="jose@example.com",
+            bio="Biography with special characters: áéíóú"
+        )
+        response = self.client.get(reverse('cv_pdf_download', kwargs={'pk': cv_special.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')

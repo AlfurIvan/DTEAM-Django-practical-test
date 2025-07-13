@@ -31,6 +31,9 @@
                 {% endif %}
             </div>
             <div class="col-md-4 text-md-end">
+                <a href="{% url 'cv_pdf_download' cv.pk %}" class="btn btn-danger me-2" target="_blank">
+                    <i class="fas fa-file-pdf"></i> Download PDF
+                </a>
                 <a href="/admin/main/cv/{{ cv.pk }}/change/" class="btn btn-outline-secondary">
                     <i class="fas fa-edit"></i> Edit CV
                 </a>

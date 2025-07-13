@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ cv.full_name }} - CV</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+            @bottom-center {
+                content: "{{ cv.full_name }} - CV | Page " counter(page) " of " counter(pages);
+                font-size: 10px;
+                color: #666;
+            }
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #007bff;
+        }
+
+        .header h1 {
+            margin: 0;
+            color: #007bff;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+
+        .header .contact-info {
+            margin-top: 10px;
+            font-size: 1.1em;
+            color: #666;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+
+        .section-title {
+            color: #007bff;
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e9ecef;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .bio {
+            text-align: justify;
+            font-size: 1.1em;
+            line-height: 1.7;
+        }
+
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .skill-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+
+        .skill-name {
+            font-weight: bold;
+        }
+
+        .skill-level {
+            background-color: #007bff;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            text-transform: capitalize;
+        }
+
+        .project {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .project-title {
+            font-weight: bold;
+            font-size: 1.2em;
+            color: #007bff;
+            margin: 0;
+        }
+
+        .project-dates {
+            font-size: 0.9em;
+            color: #666;
+            text-align: right;
+        }
+
+        .project-description {
+            margin: 10px 0;
+            text-align: justify;
+        }
+
+        .project-technologies {
+            margin-top: 10px;
+        }
+
+        .tech-tag {
+            display: inline-block;
+            background-color: #e9ecef;
+            color: #495057;
+            padding: 3px 8px;
+            margin: 2px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        }
+
+        .contacts {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .contact-item {
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #28a745;
+        }
+
+        .contact-type {
+            font-weight: bold;
+            text-transform: capitalize;
+        }
+
+        .contact-value {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .ongoing-badge {
+            background-color: #28a745;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 0.8em;
+            margin-left: 5px;
+        }
+
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+            border-top: 1px solid #e9ecef;
+            padding-top: 15px;
+        }
+
+        /* Print-specific styles */
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+
+            .section {
+                page-break-inside: avoid;
+            }
+
+            .project {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>{{ cv.full_name }}</h1>
+        <div class="contact-info">
+            <div>{{ cv.email }}</div>
+            {% if cv.phone %}
+                <div>{{ cv.phone }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Biography Section -->
+    <div class="section">
+        <div class="section-title">Professional Summary</div>
+        <div class="bio">{{ cv.bio }}</div>
+    </div>
+
+    <!-- Skills Section -->
+    {% if cv.skills.all %}
+        <div class="section">
+            <div class="section-title">Core Skills</div>
+            <div class="skills-grid">
+                {% for skill in cv.skills.all %}
+                    <div class="skill-item">
+                        <span class="skill-name">{{ skill.name }}</span>
+                        <span class="skill-level">{{ skill.get_proficiency_display }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Projects Section -->
+    {% if cv.projects.all %}
+        <div class="section">
+            <div class="section-title">Professional Projects</div>
+            {% for project in cv.projects.all %}
+                <div class="project">
+                    <div class="project-header">
+                        <h3 class="project-title">
+                            {{ project.title }}
+                            {% if project.is_ongoing %}
+                                <span class="ongoing-badge">Ongoing</span>
+                            {% endif %}
+                        </h3>
+                        <div class="project-dates">
+                            {{ project.start_date|date:"M Y" }}
+                            {% if project.end_date %}
+                                - {{ project.end_date|date:"M Y" }}
+                            {% else %}
+                                - Present
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="project-description">
+                        {{ project.description }}
+                    </div>
+                    {% if project.technologies_list %}
+                        <div class="project-technologies">
+                            <strong>Technologies:</strong>
+                            {% for tech in project.technologies_list %}
+                                <span class="tech-tag">{{ tech }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    {% if project.url %}
+                        <div style="margin-top: 8px;">
+                            <strong>URL:</strong> <span style="color: #007bff;">{{ project.url }}</span>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Contact Information Section -->
+    {% if cv.contacts.all %}
+        <div class="section">
+            <div class="section-title">Contact & Social Media</div>
+            <div class="contacts">
+                {% for contact in cv.contacts.all %}
+                    <div class="contact-item">
+                        <div class="contact-type">{{ contact.get_contact_type_display }}</div>
+                        <div class="contact-value">{{ contact.url }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Generated on {{ "now"|date:"F d, Y" }} | {{ cv.full_name }} Professional CV</p>
+    </div>
+</body>
+</html>

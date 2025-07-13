@@ -6,12 +6,19 @@ authors = [
     {name = "AlfurIvan",email = "ivan.zharyi.i@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "django (>=5.2.4,<6.0.0)"
-]
 
+[tool.poetry.dependencies]
+python = "^3.11"
+django = "^4.2"
+reportlab = "^4.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4"
+pytest-django = "^4.5"
+black = "^23.0"
+flake8 = "^6.0"
+isort = "^5.12"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
