@@ -20,18 +20,29 @@ class RequestLoggingMiddleware(MiddlewareMixin):
 
     # Paths to exclude from logging
     EXCLUDED_PATHS = [
-        '/admin/',
-        '/static/',
-        '/media/',
-        '/favicon.ico',
-        '/robots.txt',
-        '/sitemap.xml',
+        "/admin/",
+        "/static/",
+        "/media/",
+        "/favicon.ico",
+        "/robots.txt",
+        "/sitemap.xml",
     ]
 
     # File extensions to exclude
     EXCLUDED_EXTENSIONS = [
-        '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.ico',
-        '.svg', '.woff', '.woff2', '.ttf', '.eot', '.map'
+        ".css",
+        ".js",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".ico",
+        ".svg",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".map",
     ]
 
     def __init__(self, get_response):
@@ -54,7 +65,7 @@ class RequestLoggingMiddleware(MiddlewareMixin):
         # Check if this request should be logged
         if self._should_log_request(request):
             # Calculate response time
-            start_time = getattr(request, '_logging_start_time', None)
+            start_time = getattr(request, "_logging_start_time", None)
             response_time_ms = None
             if start_time:
                 response_time_ms = int((time.time() - start_time) * 1000)
@@ -94,20 +105,20 @@ class RequestLoggingMiddleware(MiddlewareMixin):
         """
         # Prepare data for logging
         log_data = {
-            'method': request.method,
-            'path': request.path,
-            'query_string': request.META.get('QUERY_STRING', ''),
-            'remote_ip': self._get_client_ip(request),
-            'user_agent': request.META.get('HTTP_USER_AGENT', '')[:500],  # Limit length
-            'response_status': response.status_code,
-            'response_time_ms': response_time_ms,
+            "method": request.method,
+            "path": request.path,
+            "query_string": request.META.get("QUERY_STRING", ""),
+            "remote_ip": self._get_client_ip(request),
+            "user_agent": request.META.get("HTTP_USER_AGENT", "")[:500],  # Limit length
+            "response_status": response.status_code,
+            "response_time_ms": response_time_ms,
         }
 
         # Start async logging thread
         logging_thread = threading.Thread(
             target=self._create_log_entry,
             args=(log_data,),
-            daemon=True  # Thread dies with the main process
+            daemon=True,  # Thread dies with the main process
         )
         logging_thread.start()
 
@@ -131,31 +142,31 @@ class RequestLoggingMiddleware(MiddlewareMixin):
         """
         # Check for IP in various headers (common proxy setups)
         ip_headers = [
-            'HTTP_X_FORWARDED_FOR',
-            'HTTP_X_REAL_IP',
-            'HTTP_X_FORWARDED',
-            'HTTP_X_CLUSTER_CLIENT_IP',
-            'HTTP_FORWARDED_FOR',
-            'HTTP_FORWARDED',
+            "HTTP_X_FORWARDED_FOR",
+            "HTTP_X_REAL_IP",
+            "HTTP_X_FORWARDED",
+            "HTTP_X_CLUSTER_CLIENT_IP",
+            "HTTP_FORWARDED_FOR",
+            "HTTP_FORWARDED",
         ]
 
         for header in ip_headers:
             ip = request.META.get(header)
             if ip:
                 # X-Forwarded-For can contain multiple IPs, take the first one
-                ip = ip.split(',')[0].strip()
+                ip = ip.split(",")[0].strip()
                 if self._is_valid_ip(ip):
                     return ip
 
         # Fall back to REMOTE_ADDR
-        return request.META.get('REMOTE_ADDR', '0.0.0.0')
+        return request.META.get("REMOTE_ADDR", "0.0.0.0")
 
     def _is_valid_ip(self, ip):
         """
         Basic IP validation to avoid logging invalid IPs.
         """
         try:
-            parts = ip.split('.')
+            parts = ip.split(".")
             if len(parts) != 4:
                 return False
             for part in parts:
@@ -195,10 +206,7 @@ class RequestLoggingCleanupMiddleware(MiddlewareMixin):
         Clean up old request logs asynchronously.
         Keeps only the last 10,000 logs to prevent database bloat.
         """
-        cleanup_thread = threading.Thread(
-            target=self._perform_cleanup,
-            daemon=True
-        )
+        cleanup_thread = threading.Thread(target=self._perform_cleanup, daemon=True)
         cleanup_thread.start()
 
     def _perform_cleanup(self):
@@ -213,7 +221,7 @@ class RequestLoggingCleanupMiddleware(MiddlewareMixin):
             cutoff_date = datetime.now() - timedelta(days=30)
 
             # Get the ID of the 10,000th most recent log
-            logs_to_keep = RequestLog.objects.values_list('id', flat=True)[:10000]
+            logs_to_keep = RequestLog.objects.values_list("id", flat=True)[:10000]
             if logs_to_keep:
                 min_id_to_keep = min(logs_to_keep)
 

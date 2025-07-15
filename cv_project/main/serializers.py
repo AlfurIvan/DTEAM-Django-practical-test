@@ -13,7 +13,7 @@ class SkillSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Skill
-        fields = ['id', 'name', 'proficiency']
+        fields = ["id", "name", "proficiency"]
 
     def validate_name(self, value):
         """
@@ -31,13 +31,13 @@ class ContactSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Contact
-        fields = ['id', 'contact_type', 'value', 'url']
+        fields = ["id", "contact_type", "value", "url"]
 
     def validate_url(self, value):
         """
         Validate URL format.
         """
-        if not value.startswith(('http://', 'https://')):
+        if not value.startswith(("http://", "https://")):
             raise serializers.ValidationError("URL must start with http:// or https://")
         return value
 
@@ -46,27 +46,33 @@ class ProjectSerializer(serializers.ModelSerializer):
     """
     Serializer for Project model.
     """
+
     is_ongoing = serializers.ReadOnlyField()
     technologies_list = serializers.ReadOnlyField()
 
     class Meta:
         model = Project
         fields = [
-            'id', 'title', 'description', 'technologies', 'technologies_list',
-            'url', 'start_date', 'end_date', 'is_ongoing'
+            "id",
+            "title",
+            "description",
+            "technologies",
+            "technologies_list",
+            "url",
+            "start_date",
+            "end_date",
+            "is_ongoing",
         ]
 
     def validate(self, data):
         """
         Validate that end_date is after start_date if provided.
         """
-        start_date = data.get('start_date')
-        end_date = data.get('end_date')
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
 
         if start_date and end_date and end_date < start_date:
-            raise serializers.ValidationError(
-                "End date must be after start date."
-            )
+            raise serializers.ValidationError("End date must be after start date.")
         return data
 
 
@@ -74,6 +80,7 @@ class CVSerializer(serializers.ModelSerializer):
     """
     Serializer for CV model with nested relationships.
     """
+
     skills = SkillSerializer(many=True, read_only=True)
     projects = ProjectSerializer(many=True, read_only=True)
     contacts = ContactSerializer(many=True, read_only=True)
@@ -82,16 +89,30 @@ class CVSerializer(serializers.ModelSerializer):
     class Meta:
         model = CV
         fields = [
-            'id', 'firstname', 'lastname', 'full_name', 'email', 'phone',
-            'bio', 'created_at', 'updated_at', 'skills', 'projects', 'contacts'
+            "id",
+            "firstname",
+            "lastname",
+            "full_name",
+            "email",
+            "phone",
+            "bio",
+            "created_at",
+            "updated_at",
+            "skills",
+            "projects",
+            "contacts",
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ["created_at", "updated_at"]
 
     def validate_email(self, value):
         """
         Validate email format and uniqueness.
         """
-        if CV.objects.filter(email=value).exclude(pk=self.instance.pk if self.instance else None).exists():
+        if (
+            CV.objects.filter(email=value)
+            .exclude(pk=self.instance.pk if self.instance else None)
+            .exists()
+        ):
             raise serializers.ValidationError("A CV with this email already exists.")
         return value
 
@@ -103,16 +124,18 @@ class CVCreateUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CV
-        fields = [
-            'id', 'firstname', 'lastname', 'email', 'phone', 'bio'
-        ]
-        read_only_fields = ['id']
+        fields = ["id", "firstname", "lastname", "email", "phone", "bio"]
+        read_only_fields = ["id"]
 
     def validate_email(self, value):
         """
         Validate email format and uniqueness.
         """
-        if CV.objects.filter(email=value).exclude(pk=self.instance.pk if self.instance else None).exists():
+        if (
+            CV.objects.filter(email=value)
+            .exclude(pk=self.instance.pk if self.instance else None)
+            .exists()
+        ):
             raise serializers.ValidationError("A CV with this email already exists.")
         return value
 
@@ -124,14 +147,14 @@ class SkillCreateUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Skill
-        fields = ['id', 'cv', 'name', 'proficiency']
+        fields = ["id", "cv", "name", "proficiency"]
 
     def validate(self, data):
         """
         Validate that CV and skill name combination is unique.
         """
-        cv = data.get('cv')
-        name = data.get('name')
+        cv = data.get("cv")
+        name = data.get("name")
 
         if cv and name:
             existing_skill = Skill.objects.filter(cv=cv, name=name)
@@ -153,21 +176,25 @@ class ProjectCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = [
-            'id', 'cv', 'title', 'description', 'technologies',
-            'url', 'start_date', 'end_date'
+            "id",
+            "cv",
+            "title",
+            "description",
+            "technologies",
+            "url",
+            "start_date",
+            "end_date",
         ]
 
     def validate(self, data):
         """
         Validate project data.
         """
-        start_date = data.get('start_date')
-        end_date = data.get('end_date')
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
 
         if start_date and end_date and end_date < start_date:
-            raise serializers.ValidationError(
-                "End date must be after start date."
-            )
+            raise serializers.ValidationError("End date must be after start date.")
         return data
 
 
@@ -178,14 +205,14 @@ class ContactCreateUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Contact
-        fields = ['id', 'cv', 'contact_type', 'value', 'url']
+        fields = ["id", "cv", "contact_type", "value", "url"]
 
     def validate(self, data):
         """
         Validate that CV and contact_type combination is unique.
         """
-        cv = data.get('cv')
-        contact_type = data.get('contact_type')
+        cv = data.get("cv")
+        contact_type = data.get("contact_type")
 
         if cv and contact_type:
             existing_contact = Contact.objects.filter(cv=cv, contact_type=contact_type)
@@ -202,6 +229,6 @@ class ContactCreateUpdateSerializer(serializers.ModelSerializer):
         """
         Validate URL format.
         """
-        if not value.startswith(('http://', 'https://')):
+        if not value.startswith(("http://", "https://")):
             raise serializers.ValidationError("URL must start with http:// or https://")
         return value

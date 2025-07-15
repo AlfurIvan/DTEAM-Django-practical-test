@@ -23,13 +23,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', "django-insecure--70e!&_45z5kj2hgw$2339vjz5vvml0i2b3n4zpvvh@6o$8yoi")
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY", "django-insecure--70e!&_45z5kj2hgw$2339vjz5vvml0i2b3n4zpvvh@6o$8yoi"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes', 'on')
+DEBUG = os.environ.get("DEBUG", "True").lower() in ("true", "1", "yes", "on")
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
-
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 
 # Application definition
@@ -62,7 +63,7 @@ ROOT_URLCONF = "core.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / 'templates'],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -84,19 +85,19 @@ WSGI_APPLICATION = "core.wsgi.application"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DATABASE_NAME', 'cv_project_db'),
-        'USER': os.environ.get('DATABASE_USER', 'cv_project_user'),
-        'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'cv_project_password_123'),
-        'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
-        'PORT': os.environ.get('DATABASE_PORT', '5432'),
-        'OPTIONS': {
-            'connect_timeout': 20,
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("DATABASE_NAME", "cv_project_db"),
+        "USER": os.environ.get("DATABASE_USER", "cv_project_user"),
+        "PASSWORD": os.environ.get("DATABASE_PASSWORD", "cv_project_password_123"),
+        "HOST": os.environ.get("DATABASE_HOST", "localhost"),
+        "PORT": os.environ.get("DATABASE_PORT", "5432"),
+        "OPTIONS": {
+            "connect_timeout": 20,
         },
     }
 }
-if not os.environ.get('DATABASE_HOST'):
+if not os.environ.get("DATABASE_HOST"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -139,8 +140,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -149,162 +150,162 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Django REST Framework
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
     ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.FormParser',
-        'rest_framework.parsers.MultiPartParser',
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
     ],
 }
 
 # OpenAI Configuration
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 TRANSLATION_SUPPORTED_LANGUAGES = {
-    'cornish': 'Cornish',
-    'manx': 'Manx',
-    'breton': 'Breton',
-    'inuktitut': 'Inuktitut',
-    'kalaallisut': 'Kalaallisut',
-    'romani': 'Romani',
-    'occitan': 'Occitan',
-    'ladino': 'Ladino',
-    'northern_sami': 'Northern Sami',
-    'upper_sorbian': 'Upper Sorbian',
-    'kashubian': 'Kashubian',
-    'zazaki': 'Zazaki',
-    'chuvash': 'Chuvash',
-    'livonian': 'Livonian',
-    'tsakonian': 'Tsakonian',
-    'saramaccan': 'Saramaccan',
-    'bislama': 'Bislama'
+    "cornish": "Cornish",
+    "manx": "Manx",
+    "breton": "Breton",
+    "inuktitut": "Inuktitut",
+    "kalaallisut": "Kalaallisut",
+    "romani": "Romani",
+    "occitan": "Occitan",
+    "ladino": "Ladino",
+    "northern_sami": "Northern Sami",
+    "upper_sorbian": "Upper Sorbian",
+    "kashubian": "Kashubian",
+    "zazaki": "Zazaki",
+    "chuvash": "Chuvash",
+    "livonian": "Livonian",
+    "tsakonian": "Tsakonian",
+    "saramaccan": "Saramaccan",
+    "bislama": "Bislama",
 }
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-EMAIL_FROM = os.getenv('EMAIL_FROM', EMAIL_HOST_USER)
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", EMAIL_HOST_USER)
 
 # For development, you can use console backend to see emails in console
 if DEBUG and not EMAIL_HOST_USER:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Celery Configuration
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 
 # Celery task routes and rate limiting
 CELERY_TASK_ROUTES = {
-    'send_cv_pdf_email': {'queue': 'emails'},
-    'cleanup_old_request_logs': {'queue': 'maintenance'},
+    "send_cv_pdf_email": {"queue": "emails"},
+    "cleanup_old_request_logs": {"queue": "maintenance"},
 }
 
 # Rate limiting for email tasks (1 email per minute per user)
 CELERY_TASK_ANNOTATIONS = {
-    'send_cv_pdf_email': {
-        'rate_limit': '1/m',  # 1 task per minute
-        'time_limit': 300,    # 5 minutes timeout
-        'soft_time_limit': 240,  # 4 minutes soft timeout
+    "send_cv_pdf_email": {
+        "rate_limit": "1/m",  # 1 task per minute
+        "time_limit": 300,  # 5 minutes timeout
+        "soft_time_limit": 240,  # 4 minutes soft timeout
     },
 }
 
 CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': CELERY_BROKER_URL,
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": CELERY_BROKER_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
-        'KEY_PREFIX': 'cv_project',
+        "KEY_PREFIX": "cv_project",
     }
 }
 
 # Session engine (use cache-based sessions with Redis)
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
 
 
 # Create logs directory if it doesn't exist
-LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
 # Logging configuration
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
         },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'console': {
-            'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'formatter': 'simple',
-        },
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': str(LOGS_DIR / 'django.log'),
-            'formatter': 'verbose',
-        },
-        'celery_file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': str(LOGS_DIR / 'celery.log'),
-            'formatter': 'verbose',
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
         },
     },
-    'root': {
-        'level': 'INFO',
-        'handlers': ['console'],
+    "handlers": {
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": str(LOGS_DIR / "django.log"),
+            "formatter": "verbose",
+        },
+        "celery_file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": str(LOGS_DIR / "celery.log"),
+            "formatter": "verbose",
+        },
     },
-    'loggers': {
-        'django': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"],
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
         },
-        'main.tasks': {
-            'handlers': ['console', 'celery_file'],
-            'level': 'INFO',
-            'propagate': False,
+        "main.tasks": {
+            "handlers": ["console", "celery_file"],
+            "level": "INFO",
+            "propagate": False,
         },
-        'main.views': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
+        "main.views": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
         },
-        'celery': {
-            'handlers': ['console', 'celery_file'],
-            'level': 'INFO',
-            'propagate': False,
+        "celery": {
+            "handlers": ["console", "celery_file"],
+            "level": "INFO",
+            "propagate": False,
         },
-        'celery.task': {
-            'handlers': ['console', 'celery_file'],
-            'level': 'INFO',
-            'propagate': False,
+        "celery.task": {
+            "handlers": ["console", "celery_file"],
+            "level": "INFO",
+            "propagate": False,
         },
     },
 }

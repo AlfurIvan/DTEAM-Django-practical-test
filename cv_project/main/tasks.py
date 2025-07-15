@@ -33,19 +33,19 @@ def send_cv_pdf_email(self, cv_id, recipient_email, sender_name=None):
     try:
         # Get CV object
         try:
-            cv = CV.objects.select_related().prefetch_related(
-                'skills', 'projects', 'contacts'
-            ).get(pk=cv_id)
+            cv = (
+                CV.objects.select_related()
+                .prefetch_related("skills", "projects", "contacts")
+                .get(pk=cv_id)
+            )
         except CV.DoesNotExist:
             logger.error(f"CV with ID {cv_id} does not exist")
-            return {
-                'success': False,
-                'error': f'CV with ID {cv_id} not found'
-            }
+            return {"success": False, "error": f"CV with ID {cv_id} not found"}
 
         # Generate PDF using the helper function from views
         try:
             from .views import generate_cv_pdf_buffer
+
             pdf_buffer = generate_cv_pdf_buffer(cv)
             pdf_data = pdf_buffer.getvalue()
             pdf_buffer.close()
@@ -55,15 +55,15 @@ def send_cv_pdf_email(self, cv_id, recipient_email, sender_name=None):
 
         # Prepare email content
         context = {
-            'cv': cv,
-            'sender_name': sender_name or 'CV Management System',
-            'recipient_email': recipient_email,
+            "cv": cv,
+            "sender_name": sender_name or "CV Management System",
+            "recipient_email": recipient_email,
         }
 
         # Render email templates
         try:
-            html_content = render_to_string('emails/cv_pdf_email.html', context)
-            text_content = render_to_string('emails/cv_pdf_email.txt', context)
+            html_content = render_to_string("emails/cv_pdf_email.html", context)
+            text_content = render_to_string("emails/cv_pdf_email.txt", context)
         except Exception as e:
             logger.error(f"Failed to render email templates: {str(e)}")
             # Fallback to simple text
@@ -88,22 +88,24 @@ def send_cv_pdf_email(self, cv_id, recipient_email, sender_name=None):
             from_email=from_email,
             to=[recipient_email],
         )
-        email.content_subtype = 'html'  # Set email as HTML
+        email.content_subtype = "html"  # Set email as HTML
 
         # Attach PDF
         filename = f"{cv.full_name.replace(' ', '_')}_CV.pdf"
-        email.attach(filename, pdf_data, 'application/pdf')
+        email.attach(filename, pdf_data, "application/pdf")
 
         # Send email
         try:
             email.send()
-            logger.info(f"CV PDF email sent successfully to {recipient_email} for CV {cv_id}")
+            logger.info(
+                f"CV PDF email sent successfully to {recipient_email} for CV {cv_id}"
+            )
             return {
-                'success': True,
-                'message': f'CV sent successfully to {recipient_email}',
-                'cv_name': cv.full_name,
-                'recipient': recipient_email,
-                'filename': filename
+                "success": True,
+                "message": f"CV sent successfully to {recipient_email}",
+                "cv_name": cv.full_name,
+                "recipient": recipient_email,
+                "filename": filename,
             }
         except Exception as e:
             logger.error(f"Failed to send email to {recipient_email}: {str(e)}")
@@ -111,13 +113,17 @@ def send_cv_pdf_email(self, cv_id, recipient_email, sender_name=None):
 
     except Exception as e:
         if self.request.retries >= self.max_retries:
-            logger.error(f"Failed to send CV PDF email after {self.max_retries} retries: {str(e)}")
+            logger.error(
+                f"Failed to send CV PDF email after {self.max_retries} retries: {str(e)}"
+            )
             return {
-                'success': False,
-                'error': f'Failed to send email after {self.max_retries} attempts: {str(e)}'
+                "success": False,
+                "error": f"Failed to send email after {self.max_retries} attempts: {str(e)}",
             }
         else:
-            logger.warning(f"Retrying CV PDF email task (attempt {self.request.retries + 1}): {str(e)}")
+            logger.warning(
+                f"Retrying CV PDF email task (attempt {self.request.retries + 1}): {str(e)}"
+            )
             raise self.retry(exc=e, countdown=60)
 
 
@@ -136,86 +142,152 @@ def translate_cv_content(self, cv_id, target_language):
     try:
         # Get CV object
         try:
-            cv = CV.objects.select_related().prefetch_related(
-                'skills', 'projects', 'contacts'
-            ).get(pk=cv_id)
+            cv = (
+                CV.objects.select_related()
+                .prefetch_related("skills", "projects", "contacts")
+                .get(pk=cv_id)
+            )
         except CV.DoesNotExist:
             logger.error(f"CV with ID {cv_id} does not exist")
-            return {
-                'success': False,
-                'error': f'CV with ID {cv_id} not found'
-            }
+            return {"success": False, "error": f"CV with ID {cv_id} not found"}
 
         # Check if OpenAI API key is configured
-        openai_api_key = getattr(settings, 'OPENAI_API_KEY', None)
+        openai_api_key = getattr(settings, "OPENAI_API_KEY", None)
         if not openai_api_key:
             logger.error("OpenAI API key not configured")
-            return {
-                'success': False,
-                'error': 'Translation service is not configured'
-            }
+            return {"success": False, "error": "Translation service is not configured"}
 
         # Initialize OpenAI client
         try:
             import openai
+
             client = openai.OpenAI(api_key=openai_api_key)
         except ImportError:
             logger.error("OpenAI library not installed")
             return {
-                'success': False,
-                'error': 'Translation service dependencies not available'
+                "success": False,
+                "error": "Translation service dependencies not available",
             }
 
         # Define technical terms to avoid translating
         technical_terms = {
-            'Python', 'Django', 'JavaScript', 'React', 'Vue', 'Angular', 'Node.js',
-            'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Docker', 'Kubernetes',
-            'AWS', 'Azure', 'GCP', 'Git', 'GitHub', 'GitLab', 'CI/CD', 'API',
-            'REST', 'GraphQL', 'HTML', 'CSS', 'SCSS', 'TypeScript', 'Java',
-            'C++', 'C#', 'PHP', 'Ruby', 'Go', 'Rust', 'Swift', 'Kotlin',
-            'Flask', 'FastAPI', 'Express', 'Spring', 'Laravel', 'Symfony',
-            'TensorFlow', 'PyTorch', 'scikit-learn', 'NumPy', 'Pandas',
-            'Jupyter', 'Anaconda', 'Linux', 'Ubuntu', 'CentOS', 'Windows',
-            'macOS', 'iOS', 'Android', 'Unity', 'Unreal', 'Blender',
-            'Photoshop', 'Illustrator', 'Figma', 'Sketch', 'Adobe',
-            'Webpack', 'Babel', 'npm', 'yarn', 'pip', 'composer',
-            'Terraform', 'Ansible', 'Jenkins', 'Nginx', 'Apache',
-            'Elasticsearch', 'Kafka', 'RabbitMQ', 'Celery', 'Gunicorn'
+            "Python",
+            "Django",
+            "JavaScript",
+            "React",
+            "Vue",
+            "Angular",
+            "Node.js",
+            "PostgreSQL",
+            "MySQL",
+            "MongoDB",
+            "Redis",
+            "Docker",
+            "Kubernetes",
+            "AWS",
+            "Azure",
+            "GCP",
+            "Git",
+            "GitHub",
+            "GitLab",
+            "CI/CD",
+            "API",
+            "REST",
+            "GraphQL",
+            "HTML",
+            "CSS",
+            "SCSS",
+            "TypeScript",
+            "Java",
+            "C++",
+            "C#",
+            "PHP",
+            "Ruby",
+            "Go",
+            "Rust",
+            "Swift",
+            "Kotlin",
+            "Flask",
+            "FastAPI",
+            "Express",
+            "Spring",
+            "Laravel",
+            "Symfony",
+            "TensorFlow",
+            "PyTorch",
+            "scikit-learn",
+            "NumPy",
+            "Pandas",
+            "Jupyter",
+            "Anaconda",
+            "Linux",
+            "Ubuntu",
+            "CentOS",
+            "Windows",
+            "macOS",
+            "iOS",
+            "Android",
+            "Unity",
+            "Unreal",
+            "Blender",
+            "Photoshop",
+            "Illustrator",
+            "Figma",
+            "Sketch",
+            "Adobe",
+            "Webpack",
+            "Babel",
+            "npm",
+            "yarn",
+            "pip",
+            "composer",
+            "Terraform",
+            "Ansible",
+            "Jenkins",
+            "Nginx",
+            "Apache",
+            "Elasticsearch",
+            "Kafka",
+            "RabbitMQ",
+            "Celery",
+            "Gunicorn",
         }
 
         def protect_technical_terms(text):
             """Wrap technical terms to prevent translation."""
             if not text:
                 return text, {}
-            
+
             protected_text = text
             term_map = {}
-            
+
             # Sort terms by length (longest first) to avoid partial matches
             sorted_terms = sorted(technical_terms, key=len, reverse=True)
-            
+
             for i, term in enumerate(sorted_terms):
                 # Case-insensitive search with word boundaries
-                pattern = r'\b' + re.escape(term) + r'\b'
+                pattern = r"\b" + re.escape(term) + r"\b"
                 matches = re.finditer(pattern, protected_text, re.IGNORECASE)
-                
+
                 for match in matches:
                     original_term = match.group()
                     placeholder = f"TECH_TERM_{i}"
                     term_map[placeholder] = original_term
-                    protected_text = protected_text.replace(original_term, placeholder, 1)
-            
+                    protected_text = protected_text.replace(
+                        original_term, placeholder, 1
+                    )
+
             return protected_text, term_map
 
         def restore_technical_terms(text, term_map):
             """Restore technical terms after translation."""
             if not text or not term_map:
                 return text
-                
+
             restored_text = text
             for placeholder, original_term in term_map.items():
                 restored_text = restored_text.replace(placeholder, original_term)
-            
+
             return restored_text
 
         # Prepare content for translation
@@ -225,94 +297,96 @@ def translate_cv_content(self, cv_id, target_language):
         if cv.bio:
             try:
                 protected_bio, bio_term_map = protect_technical_terms(cv.bio)
-                
+
                 bio_response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
                         {
                             "role": "system",
-                            "content": f"You are a professional translator. Translate the following professional biography to {target_language}. Maintain professional tone and keep any placeholders (TECH_TERM_X) unchanged. Preserve paragraph structure."
+                            "content": f"You are a professional translator. Translate the following professional biography to {target_language}. Maintain professional tone and keep any placeholders (TECH_TERM_X) unchanged. Preserve paragraph structure.",
                         },
-                        {
-                            "role": "user",
-                            "content": protected_bio
-                        }
+                        {"role": "user", "content": protected_bio},
                     ],
                     max_tokens=1000,
-                    temperature=0.3
+                    temperature=0.3,
                 )
-                
+
                 translated_bio = bio_response.choices[0].message.content.strip()
-                translation_data['bio'] = restore_technical_terms(translated_bio, bio_term_map)
-                
+                translation_data["bio"] = restore_technical_terms(
+                    translated_bio, bio_term_map
+                )
+
             except Exception as e:
                 logger.warning(f"Failed to translate biography: {str(e)}")
-                translation_data['bio'] = cv.bio  # Keep original if translation fails
+                translation_data["bio"] = cv.bio  # Keep original if translation fails
         else:
             # Include empty bio in result
-            translation_data['bio'] = cv.bio or ""
+            translation_data["bio"] = cv.bio or ""
 
         # 2. Translate projects
-        translation_data['projects'] = []
+        translation_data["projects"] = []
         for project in cv.projects.all():
             try:
                 project_data = {
-                    'id': project.id,
-                    'title': project.title,  # Keep title as is (usually technical)
-                    'description': project.description,
-                    'technologies': project.technologies,
-                    'url': project.url,
-                    'start_date': project.start_date,
-                    'end_date': project.end_date,
-                    'is_ongoing': project.is_ongoing
+                    "id": project.id,
+                    "title": project.title,  # Keep title as is (usually technical)
+                    "description": project.description,
+                    "technologies": project.technologies,
+                    "url": project.url,
+                    "start_date": project.start_date,
+                    "end_date": project.end_date,
+                    "is_ongoing": project.is_ongoing,
                 }
 
                 # Translate description
                 if project.description:
-                    protected_desc, desc_term_map = protect_technical_terms(project.description)
-                    
+                    protected_desc, desc_term_map = protect_technical_terms(
+                        project.description
+                    )
+
                     desc_response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         messages=[
                             {
                                 "role": "system",
-                                "content": f"You are a professional translator. Translate the following project description to {target_language}. Maintain professional tone and keep any placeholders (TECH_TERM_X) unchanged."
+                                "content": f"You are a professional translator. Translate the following project description to {target_language}. Maintain professional tone and keep any placeholders (TECH_TERM_X) unchanged.",
                             },
-                            {
-                                "role": "user",
-                                "content": protected_desc
-                            }
+                            {"role": "user", "content": protected_desc},
                         ],
                         max_tokens=500,
-                        temperature=0.3
+                        temperature=0.3,
                     )
-                    
-                    translated_desc = desc_response.choices[0].message.content.strip()
-                    project_data['description'] = restore_technical_terms(translated_desc, desc_term_map)
 
-                translation_data['projects'].append(project_data)
+                    translated_desc = desc_response.choices[0].message.content.strip()
+                    project_data["description"] = restore_technical_terms(
+                        translated_desc, desc_term_map
+                    )
+
+                translation_data["projects"].append(project_data)
 
             except Exception as e:
                 logger.warning(f"Failed to translate project {project.id}: {str(e)}")
                 # Keep original data if translation fails
-                translation_data['projects'].append({
-                    'id': project.id,
-                    'title': project.title,
-                    'description': project.description,
-                    'technologies': project.technologies,
-                    'url': project.url,
-                    'start_date': project.start_date,
-                    'end_date': project.end_date,
-                    'is_ongoing': project.is_ongoing
-                })
+                translation_data["projects"].append(
+                    {
+                        "id": project.id,
+                        "title": project.title,
+                        "description": project.description,
+                        "technologies": project.technologies,
+                        "url": project.url,
+                        "start_date": project.start_date,
+                        "end_date": project.end_date,
+                        "is_ongoing": project.is_ongoing,
+                    }
+                )
 
         # 3. Skills - only translate non-technical skill names
-        translation_data['skills'] = []
+        translation_data["skills"] = []
         for skill in cv.skills.all():
             skill_data = {
-                'id': skill.id,
-                'name': skill.name,
-                'proficiency': skill.proficiency
+                "id": skill.id,
+                "name": skill.name,
+                "proficiency": skill.proficiency,
             }
 
             # Check if skill name is technical (skip translation)
@@ -323,55 +397,57 @@ def translate_cv_content(self, cv_id, target_language):
                         messages=[
                             {
                                 "role": "system",
-                                "content": f"You are a professional translator. Translate this skill name to {target_language}. If it's a technical term or proper noun, return it unchanged. Return only the translated text."
+                                "content": f"You are a professional translator. Translate this skill name to {target_language}. If it's a technical term or proper noun, return it unchanged. Return only the translated text.",
                             },
-                            {
-                                "role": "user",
-                                "content": skill.name
-                            }
+                            {"role": "user", "content": skill.name},
                         ],
                         max_tokens=50,
-                        temperature=0.3
+                        temperature=0.3,
                     )
-                    
+
                     translated_skill = skill_response.choices[0].message.content.strip()
                     # Only use translation if it's different and not just the original
                     if translated_skill.lower() != skill.name.lower():
-                        skill_data['name'] = translated_skill
+                        skill_data["name"] = translated_skill
 
                 except Exception as e:
                     logger.warning(f"Failed to translate skill {skill.name}: {str(e)}")
                     # Keep original if translation fails
 
-            translation_data['skills'].append(skill_data)
+            translation_data["skills"].append(skill_data)
 
         logger.info(f"Successfully translated CV {cv_id} to {target_language}")
-        
+
         return {
-            'success': True,
-            'cv_id': cv_id,
-            'target_language': target_language,
-            'translated_data': translation_data,
-            'cv_name': cv.full_name
+            "success": True,
+            "cv_id": cv_id,
+            "target_language": target_language,
+            "translated_data": translation_data,
+            "cv_name": cv.full_name,
         }
 
     except Exception as e:
         # Check if we're in test mode to avoid retry loops
         import os
+
         is_test_mode = (
-            'test' in sys.argv or 
-            os.environ.get('DJANGO_SETTINGS_MODULE', '').endswith('test_settings') or
-            getattr(self, '_called_from_test', False)
+            "test" in sys.argv
+            or os.environ.get("DJANGO_SETTINGS_MODULE", "").endswith("test_settings")
+            or getattr(self, "_called_from_test", False)
         )
-        
+
         if self.request.retries >= self.max_retries or is_test_mode:
-            logger.error(f"Failed to translate CV {cv_id} after {self.max_retries} retries: {str(e)}")
+            logger.error(
+                f"Failed to translate CV {cv_id} after {self.max_retries} retries: {str(e)}"
+            )
             return {
-                'success': False,
-                'error': f'Translation failed after {self.max_retries} attempts: {str(e)}'
+                "success": False,
+                "error": f"Translation failed after {self.max_retries} attempts: {str(e)}",
             }
         else:
-            logger.warning(f"Retrying CV translation task (attempt {self.request.retries + 1}): {str(e)}")
+            logger.warning(
+                f"Retrying CV translation task (attempt {self.request.retries + 1}): {str(e)}"
+            )
             raise self.retry(exc=e, countdown=30)
 
 
@@ -388,22 +464,19 @@ def cleanup_old_request_logs(days=30):
     """
     try:
         cutoff_date = timezone.now() - timedelta(days=days)
-        deleted_count = RequestLog.objects.filter(
-            timestamp__lt=cutoff_date
-        ).delete()[0]
+        deleted_count = RequestLog.objects.filter(timestamp__lt=cutoff_date).delete()[0]
 
-        logger.info(f"Cleaned up {deleted_count} old request logs older than {days} days")
+        logger.info(
+            f"Cleaned up {deleted_count} old request logs older than {days} days"
+        )
         return {
-            'success': True,
-            'deleted_count': deleted_count,
-            'cutoff_date': cutoff_date.isoformat()
+            "success": True,
+            "deleted_count": deleted_count,
+            "cutoff_date": cutoff_date.isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to cleanup old request logs: {str(e)}")
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 @shared_task
@@ -413,7 +486,7 @@ def test_celery_task():
     """
     logger.info("Test Celery task executed successfully")
     return {
-        'success': True,
-        'message': 'Celery is working correctly!',
-        'timestamp': timezone.now().isoformat()
+        "success": True,
+        "message": "Celery is working correctly!",
+        "timestamp": timezone.now().isoformat(),
     }
