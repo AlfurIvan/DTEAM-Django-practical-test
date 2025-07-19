@@ -1,0 +1,149 @@
+# docker-compose.prod.yml
+# Production Docker Compose for DigitalOcean Droplet
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-cv_project_db}
+      POSTGRES_USER: ${DATABASE_USER:-cv_project_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-cv_project_password_123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cv_project_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-cv_project_user}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    networks:
+      - cv_project_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.droplet_settings
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DROPLET_IP=${DROPLET_IP}
+      - DOMAIN_NAME=${DOMAIN_NAME:-}
+      - DATABASE_NAME=${DATABASE_NAME:-cv_project_db}
+      - DATABASE_USER=${DATABASE_USER:-cv_project_user}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-cv_project_password_123}
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - USE_HTTPS=${USE_HTTPS:-False}
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/mediafiles
+      - ./logs:/var/log
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cv_project_network
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: cd cv_project && poetry run celery -A core worker --loglevel=info -P eventlet --concurrency=2
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.droplet_settings
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_NAME=${DATABASE_NAME:-cv_project_db}
+      - DATABASE_USER=${DATABASE_USER:-cv_project_user}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-cv_project_password_123}
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./logs:/var/log
+    depends_on:
+      - db
+      - redis
+      - web
+    networks:
+      - cv_project_network
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: cd cv_project && poetry run celery -A core beat --loglevel=info
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.droplet_settings
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_NAME=${DATABASE_NAME:-cv_project_db}
+      - DATABASE_USER=${DATABASE_USER:-cv_project_user}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-cv_project_password_123}
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./logs:/var/log
+    depends_on:
+      - db
+      - redis
+      - web
+    networks:
+      - cv_project_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+
+networks:
+  cv_project_network:
+    driver: bridge
