@@ -89,6 +89,12 @@ if USE_HTTPS and not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
+CSRF_TRUSTED_ORIGINS = [
+    f'http://{os.getenv('DROPLET_IP')}',
+    'http://localhost',
+]
+
+
 # Logging configuration
 LOGGING = {
     'version': 1,

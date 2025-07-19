@@ -51,5 +51,7 @@ EXPOSE 80 8000
 # Set the working directory back to /app
 WORKDIR /app
 
+RUN mkdir -p /var/log/nginx && touch /var/log/nginx/access.log /var/log/nginx/error.log
+
 # Use droplet entrypoint
 ENTRYPOINT ["./docker-entrypoint-droplet.sh"]
